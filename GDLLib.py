@@ -29,6 +29,15 @@ PARFLG_BOLDNAME = 2
 PARFLG_UNIQUE   = 3
 PARFLG_HIDDEN   = 4
 
+SCRIPT_NAMES_LIST = ["Script_1D",
+                     "Script_2D",
+                     "Script_3D",
+                     "Script_PR",
+                     "Script_UI",
+                     "Script_VL",
+                     "Script_FWM",
+                     "Script_BWM",]
+
 # ------------------- parameter classes --------------------------------------------------------------------------------
 
 class ArgParse(argparse.ArgumentParser):
@@ -774,12 +783,12 @@ class GeneralFile(object) :
         |               |              |               |
     SourceImage     DestImage       SourceXML       DestXML
     """
-    def __init__(self, relPath, **kwargs):
-        self.relPath            = relPath
-        self.fileNameWithExt    = os.path.basename(relPath)
+    def __init__(self, src, p_sRootFolder, **kwargs):
+        self.relPath            = os.path.relpath(src, p_sRootFolder)
+        self.fileNameWithExt    = os.path.basename(self.relPath)
         self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
         self.ext                = os.path.splitext(self.fileNameWithExt)[1]
-        self.dirName            = os.path.dirname(relPath)
+        self.dirName            = os.path.dirname(self.relPath)
         if 'root' in kwargs:
             self.fullPath = os.path.join(kwargs['root'], self.relPath)
             self.fullDirName         = os.path.dirname(self.fullPath)
@@ -801,10 +810,9 @@ class GeneralFile(object) :
 
 
 class SourceFile(GeneralFile):
-    def __init__(self, relPath, **kwargs):
-        super(SourceFile, self).__init__(relPath, **kwargs)
-        # self.fullPath = SourceXMLDirName.get() + "/" + relPath.replace("\\", "/")
-        self.fullPath = os.path.join(SourceXMLDirName.get(), relPath)
+    def __init__(self, src, p_sRootFolder, **kwargs):
+        super(SourceFile, self).__init__(src, p_sRootFolder, **kwargs)
+        self.fullPath = os.path.join(p_sRootFolder, src)
 
 
 class DestFile(GeneralFile):
@@ -816,6 +824,8 @@ class DestFile(GeneralFile):
 
 
 class SourceImage(SourceFile):
+    source_pict_dict = {}
+
     def __init__(self, sourceFile, **kwargs):
         super(SourceImage, self).__init__(sourceFile, **kwargs)
         self.name = self.fileNameWithExt
@@ -833,9 +843,9 @@ class DestImage(DestFile):
         super(DestImage, self).__init__(self.relPath, sourceFile=self.sourceFile)
         self.ext                = self.sourceFile.ext
 
-        if stringTo not in self._name and bAddStr.get() and not sourceFile.isEncodedImage:
-            self.fileNameWithOutExt = os.path.splitext(self._name)[0] + stringTo
-            self._name           = self.fileNameWithOutExt + self.ext
+        # if stringTo not in self._name and bAddStr.get() and not sourceFile.isEncodedImage:
+        #     self.fileNameWithOutExt = os.path.splitext(self._name)[0] + stringTo
+        #     self._name           = self.fileNameWithOutExt + self.ext
         self.fileNameWithExt = self._name
 
         self.relPath            = os.path.join(sourceFile.dirName, self._name)
@@ -857,8 +867,8 @@ class DestImage(DestFile):
 
 
 class XMLFile(GeneralFile):
-    def __init__(self, relPath, **kwargs):
-        super(XMLFile, self).__init__(relPath, **kwargs)
+    def __init__(self, src, p_sRootFolder, **kwargs):
+        super(XMLFile, self).__init__(src, p_sRootFolder, **kwargs)
         self._name       = self.fileNameWithOutExt
         self.bPlaceable  = False
         self.prevPict    = ''
@@ -883,10 +893,15 @@ class XMLFile(GeneralFile):
 
 
 class SourceXML (XMLFile, SourceFile):
+    source_guids = {}
+    replacement_dict = {}
+    dest_dict = {}
+    id_dict = {}
+    all_keywords = set()
 
-    def __init__(self, relPath):
+    def __init__(self, src, p_sRootFolder):
         global all_keywords, ID
-        super(SourceXML, self).__init__(relPath)
+        super(SourceXML, self).__init__(src, p_sRootFolder)
         self.calledMacros   = {}
         self.parentSubTypes = []
         self.scripts        = {}
@@ -942,12 +957,12 @@ class SourceXML (XMLFile, SourceFile):
         if k is not None:
             t = re.sub("\n", ", ", k.text)
             self.keywords = [kw.strip() for kw in t.split(",") if kw != ''][1:-1]
-            all_keywords |= set(self.keywords)
+            SourceXML.all_keywords |= set(self.keywords)
         else:
             self.keywords = None
 
-        if self.guid.upper() not in source_guids:
-            source_guids[self.guid.upper()] = self.name
+        if self.guid.upper() not in SourceXML.source_guids:
+            SourceXML.source_guids[self.guid.upper()] = self.name
 
         pic = mroot.find("./Picture")
         if pic is not None:
@@ -967,33 +982,28 @@ class SourceXML (XMLFile, SourceFile):
                 return True
 
         for _, macroName in self.calledMacros.items():
-            if macroName in replacement_dict:
+            if macroName in SourceXML.replacement_dict:
                 if macroName not in inMacroSet:
-                    if replacement_dict[macroName].checkParameterUsage(inPar, inMacroSet):
+                    if SourceXML.replacement_dict[macroName].checkParameterUsage(inPar, inMacroSet):
                         return True
         return False
 
 
 class DestXML (XMLFile, DestFile):
-    # tags            = []      #FIXME later; from BO site
-
     def __init__(self, sourceFile, stringFrom = "", stringTo = "", **kwargs):
         # Renaming
         if 'targetFileName' in kwargs:
             self.name     = kwargs['targetFileName']
         else:
             self.name     = re.sub(stringFrom, stringTo, sourceFile.name, flags=re.IGNORECASE)
-            if stringTo not in self.name and bAddStr.get():
-                self.name += stringTo
-        if self.name.upper() in dest_dict:
+            # if stringTo not in self.name and bAddStr.get():
+            #     self.name += stringTo
+        if self.name.upper() in SourceXML.dest_dict:
             i = 1
-            while self.name.upper() + "_" + str(i) in list(dest_dict.keys()):
+            while self.name.upper() + "_" + str(i) in list(SourceXML.dest_dict.keys()):
                 i += 1
             self.name += "_" + str(i)
 
-            # if "XML Target file exists!" in self.warnings:
-            #     self.warnings.remove("XML Target file exists!")
-            #     self.refreshFileNames()
         self.relPath                = os.path.join(sourceFile.dirName, self.name + sourceFile.ext)
 
         super(DestXML, self).__init__(self.relPath, sourceFile=sourceFile)
@@ -1009,37 +1019,23 @@ class DestXML (XMLFile, DestFile):
 
         self.parameters             = copy.deepcopy(sourceFile.parameters)
 
-        fullPath                    = os.path.join(TargetXMLDirName.get(), self.relPath)
+        fullPath                    = os.path.join(kwargs["TargetXMLDirName"], self.relPath)
         if os.path.isfile(fullPath):
-            #for overwriting existing xmls while retaining GUIDs etx
-            if bOverWrite.get():
-                #FIXME to finish it
-                self.bOverWrite             = True
-                self.bRetainCalledMacros    = True
-                mdp = etree.parse(fullPath, etree.XMLParser(strip_cdata=False))
-                # self.iVersion = mdp.getroot().attrib['Version']
-                # if self.iVersion >= AC_18:
-                #     self.ID = "MainGUID"
-                # else:
-                #     self.ID = "UNID"
-                self.guid = mdp.getroot().attrib[ID]
-                print(mdp.getroot().attrib[ID])
-            else:
-                self.warnings += ["XML Target file exists!"]
+            self.warnings += ["XML Target file exists!"]
 
-        fullGDLPath                 = os.path.join(TargetGDLDirName.get(), self.fileNameWithOutExt + ".gsm")
+        fullGDLPath                 = os.path.join(kwargs["TargetGDLDirName"], self.fileNameWithOutExt + ".gsm")
         if os.path.isfile(fullGDLPath):
             self.warnings += ["GDL Target file exists!"]
 
-        if self.iVersion >= AC_18:
-            # AC18 and over: adding licensing statically, can be manually owerwritten on GUI
-            self.author         = "BIMobject"
-            self.license        = "CC BY-ND"
-            self.licneseVersion = "3.0"
+        # if self.iVersion >= AC_18:
+        #     # AC18 and over: adding licensing statically, can be manually owerwritten on GUI
+        #     self.author         = "LIMA Design"
+        #     self.license        = "CC BY-ND"
+        #     self.licneseVersion = "3.0"
 
-        if self.sourceFile.guid.upper() not in id_dict:
+        if self.sourceFile.guid.upper() not in SourceXML.id_dict:
             # if id_dict[self.sourceFile.guid.upper()] == "":
-            id_dict[self.sourceFile.guid.upper()] = self.guid.upper()
+            SourceXML.id_dict[self.sourceFile.guid.upper()] = self.guid.upper()
 
     def getCalledMacro(self):
         """
