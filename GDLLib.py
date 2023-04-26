@@ -1,13 +1,8 @@
 import argparse
 from lxml import etree
 import re
-import os
-import copy
-import uuid
-
 
 AC_18   = 28
-
 
 PAR_UNKNOWN     = 0
 PAR_LENGTH      = 1
@@ -37,6 +32,18 @@ SCRIPT_NAMES_LIST = ["Script_1D",
                      "Script_VL",
                      "Script_FWM",
                      "Script_BWM",]
+
+PARAM_TYPES = {"Pens":      PAR_PEN,
+               "Fills":     PAR_FILL,
+               "Linetypes": PAR_LINETYPE,
+               "Surfaces":  PAR_MATERIAL,
+               "Strings":   PAR_STRING,
+               "Booleans":  PAR_BOOL,
+               "Integers":  PAR_INT,
+               "Real":      PAR_REAL,
+               "Angle":     PAR_ANGLE,
+               "Length":    PAR_LENGTH,
+}
 
 # ------------------- parameter classes --------------------------------------------------------------------------------
 
@@ -114,8 +121,6 @@ class ParamSection:
     def __getitem__(self, item):
         if isinstance(item, int):
             return self.__paramList[item]
-        if isinstance(item, str):
-            return self.__paramDict[item]
         if isinstance(item, str):
             return self.__paramDict[item]
 
@@ -392,6 +397,23 @@ class ParamSection:
                      inValue=inCol,
                      inAVals=arrayValues)
 
+    def getParamsByType(self, p_iType):
+        resultList = []
+        for par in self.__paramList:
+            if par.iType == p_iType:
+                resultList.append(par)
+        return resultList
+
+    def getParamsByTypeNameAndValue(self, p_iType, param_name = "", param_desc = "", value = None):
+        resultList = []
+        for par in self.__paramList:
+            if par.iType == p_iType \
+                    and (par.name == param_name or not param_name)\
+                    and (not param_desc or par.desc == '"' + param_desc + '"')\
+                    and (par.value == value or not value):
+                resultList.append(par)
+        return resultList
+
 
 class ResizeableGDLDict(dict):
     """
@@ -450,9 +472,11 @@ class Param(object):
                  inChild=False,
                  inUnique=False,
                  inHidden=False,
-                 inBold=False):
-        self.__index = 0
+                 inBold=False,
+                 inFix=False):
+        self.__index    = 0
         self.value      = None
+        self.bFix       = inFix
 
         if inETree is not None:
             self.eTree = inETree
@@ -528,7 +552,6 @@ class Param(object):
             self.aVals = None
 
     def __toFormat(self, inData):
-
         """
         Returns data converted from string according to self.iType
         :param inData:
@@ -551,6 +574,8 @@ class Param(object):
     def _valueToString(self, inVal):
         if self.iType in (PAR_STRING, ):
             if inVal is not None:
+                if not isinstance(inVal, str):
+                    inVal = str(inVal)
                 if not inVal.startswith('"'):
                     inVal = '"' + inVal
                 if not inVal.endswith('"') or len(inVal) == 1:
@@ -599,9 +624,16 @@ class Param(object):
             if not self.desc.endswith('"') or self.desc == '"':
                 self.desc += '"'
             desc.text = etree.CDATA(self.desc)
-            nTabs = 3 if len(self.flags) or self.value is not None or self.aVals is not None else 2
+            nTabs = 3 if len(self.flags) or self.value is not None or self.aVals is not None or self.bFix else 2
             desc.tail = '\n' + nTabs * '\t'
             elem.append(desc)
+
+            if self.bFix:
+                #FIXME Fix seems to be a param coming from inheritance
+                fix = etree.Element("Fix")
+                nTabs = 3 if len(self.flags) or self.value is not None or self.aVals is not None else 2
+                fix.tail = '\n' + nTabs * '\t'
+                elem.append(fix)
 
             if self.flags:
                 flags = etree.Element("Flags")
@@ -655,6 +687,9 @@ class Param(object):
                 self.valTail = None
 
             self.aVals = inETree.find("ArrayValues")
+
+            if inETree.find("Fix") is not None:
+                self.bFix = True
 
             if inETree.find("Flags") is not None:
                 self.flagsTail = inETree.find("Flags").tail
@@ -753,295 +788,3 @@ class Param(object):
 
 # -------------------/parameter classes --------------------------------------------------------------------------------
 
-# ------------------- data classes -------------------------------------------------------------------------------------
-
-class GeneralFile(object) :
-    """
-    basePath:   C:\...\
-    fullPath:   C:\...\relPath\fileName.ext  -only for sources; dest stuff can always be modified
-    relPath:           relPath\fileName.ext
-    dirName            relPath
-    fileNameWithExt:           fileName.ext
-    name:                      fileName     - for XMLs
-    name:                      fileName.ext - for images
-    fileNameWithOutExt:        fileName     - for images
-    ext:                               .ext
-
-    Inheritances:
-
-                    GeneralFile
-                        |
-        +---------------+--------------+
-        |               |              |
-    SourceFile      DestFile        XMLFile
-        |               |              |
-        |               |              +---------------+
-        |               |              |               |
-        +-------------- | -------------+               |
-        |               |              |               |
-        |               +------------- | --------------+
-        |               |              |               |
-    SourceImage     DestImage       SourceXML       DestXML
-    """
-    def __init__(self, src, p_sRootFolder, **kwargs):
-        self.relPath            = os.path.relpath(src, p_sRootFolder)
-        self.fileNameWithExt    = os.path.basename(self.relPath)
-        self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
-        self.ext                = os.path.splitext(self.fileNameWithExt)[1]
-        self.dirName            = os.path.dirname(self.relPath)
-        if 'root' in kwargs:
-            self.fullPath = os.path.join(kwargs['root'], self.relPath)
-            self.fullDirName         = os.path.dirname(self.fullPath)
-
-    def refreshFileNames(self):
-        self.fileNameWithExt    = self.name + self.ext
-        self.fileNameWithOutExt = self.name
-        self.relPath            = os.path.join(self.dirName, self.fileNameWithExt)
-
-    def __lt__(self, other):
-        if self.dirName != other.dirName:
-            if self.dirName in other.dirName:
-                return True
-            elif other.dirName in self.dirName:
-                return False
-            else:
-                return self.dirName.upper() < other.dirName.upper()
-        return self.fileNameWithOutExt.upper() < other.name.upper()
-
-
-class SourceFile(GeneralFile):
-    def __init__(self, src, p_sRootFolder, **kwargs):
-        super(SourceFile, self).__init__(src, p_sRootFolder, **kwargs)
-        self.fullPath = os.path.join(p_sRootFolder, src)
-
-
-class DestFile(GeneralFile):
-    def __init__(self, fileName, **kwargs):
-        super(DestFile, self).__init__(fileName)
-        self.sourceFile         = kwargs['sourceFile']
-        #FIXME sourcefile multiple times defined in Dest* classes
-        self.ext                = self.sourceFile.ext
-
-
-class SourceImage(SourceFile):
-    source_pict_dict = {}
-
-    def __init__(self, sourceFile, **kwargs):
-        super(SourceImage, self).__init__(sourceFile, **kwargs)
-        self.name = self.fileNameWithExt
-        self.isEncodedImage = False
-
-
-class DestImage(DestFile):
-    def __init__(self, sourceFile, stringFrom, stringTo):
-        if not sourceFile.isEncodedImage:
-            self._name               = re.sub(stringFrom, stringTo, sourceFile.name, flags=re.IGNORECASE)
-        else:
-            self._name               = sourceFile.name
-        self.sourceFile         = sourceFile
-        self.relPath            = os.path.join(sourceFile.dirName, self._name)
-        super(DestImage, self).__init__(self.relPath, sourceFile=self.sourceFile)
-        self.ext                = self.sourceFile.ext
-
-        # if stringTo not in self._name and bAddStr.get() and not sourceFile.isEncodedImage:
-        #     self.fileNameWithOutExt = os.path.splitext(self._name)[0] + stringTo
-        #     self._name           = self.fileNameWithOutExt + self.ext
-        self.fileNameWithExt = self._name
-
-        self.relPath            = os.path.join(sourceFile.dirName, self._name)
-        super(DestImage, self).__init__(self.relPath, sourceFile=self.sourceFile)
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, inName):
-        self._name      = inName
-        self.relPath    = os.path.join(self.dirName, self._name)
-
-    def refreshFileNames(self):
-        pass
-
-    #FIXME self.name as @property
-
-
-class XMLFile(GeneralFile):
-    def __init__(self, src, p_sRootFolder, **kwargs):
-        super(XMLFile, self).__init__(src, p_sRootFolder, **kwargs)
-        self._name       = self.fileNameWithOutExt
-        self.bPlaceable  = False
-        self.prevPict    = ''
-        self.gdlPicts    = []
-
-    def __lt__(self, other):
-        if self.bPlaceable and not other.bPlaceable:
-            return True
-        if not self.bPlaceable and other.bPlaceable:
-            return False
-        return super().__lt__(other)
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, inName):
-        self._name   = inName
-        # self.relPath = self.dirName + "/" + self._name
-        # self.fileNameWithExt = self._name + self.ext
-
-
-class SourceXML (XMLFile, SourceFile):
-    source_guids = {}
-    replacement_dict = {}
-    dest_dict = {}
-    id_dict = {}
-    all_keywords = set()
-
-    def __init__(self, src, p_sRootFolder):
-        global all_keywords, ID
-        super(SourceXML, self).__init__(src, p_sRootFolder)
-        self.calledMacros   = {}
-        self.parentSubTypes = []
-        self.scripts        = {}
-
-        mroot = etree.parse(self.fullPath, etree.XMLParser(strip_cdata=False))
-        self.iVersion = int(mroot.getroot().attrib['Version'])
-
-        if int(self.iVersion) <= AC_18:
-            ID = 'UNID'
-            self.ID = 'UNID'
-        else:
-            ID = 'MainGUID'
-            self.ID = 'MainGUID'
-        self.guid = mroot.getroot().attrib[ID]
-
-        if mroot.getroot().attrib['IsPlaceable'] == 'no':
-            self.bPlaceable = False
-        else:
-            self.bPlaceable = True
-
-        #Filtering params in source in place of dest cos it's feasible and in dest later added params are unused
-        # FIXME getting calledmacros' guids.
-
-        if self.iVersion >= AC_18:
-            ID = "MainGUID"
-        else:
-            ID = "UNID"
-
-        for a in mroot.findall("./Ancestry"):
-            for ancestryID in a.findall(ID):
-                self.parentSubTypes += [ancestryID.text]
-
-        for m in mroot.findall("./CalledMacros/Macro"):
-            calledMacroID = m.find(ID).text
-            self.calledMacros[calledMacroID] = m.find("MName").text.strip( "'" + '"')
-
-        for gdlPict in mroot.findall("./GDLPict"):
-            if 'path' in gdlPict.attrib:
-                _path = os.path.basename(gdlPict.attrib['path'])
-                self.gdlPicts += [_path.upper()]
-
-        # Parameter manipulation: checking usage and later add custom pars
-        self.parameters = ParamSection(mroot.find("./ParamSection"))
-
-        for scriptName in SCRIPT_NAMES_LIST:
-            script = mroot.find("./%s" % scriptName)
-            if script is not None:
-                self.scripts[scriptName] = script.text
-
-        # for par in self.parameters:
-        #     par.isUsed = self.checkParameterUsage(par, set())
-        k = mroot.find("./Keywords")
-        if k is not None:
-            t = re.sub("\n", ", ", k.text)
-            self.keywords = [kw.strip() for kw in t.split(",") if kw != ''][1:-1]
-            SourceXML.all_keywords |= set(self.keywords)
-        else:
-            self.keywords = None
-
-        if self.guid.upper() not in SourceXML.source_guids:
-            SourceXML.source_guids[self.guid.upper()] = self.name
-
-        pic = mroot.find("./Picture")
-        if pic is not None:
-            if "path" in pic.attrib:
-                self.prevPict = pic.attrib["path"]
-
-    def checkParameterUsage(self, inPar, inMacroSet):
-        """
-        Checking whether a certain Parameter is used in the macro or any of its called macros
-        :param inPar:       Parameter
-        :param inMacroSet:  set of macros that the parameter was searched in before
-        :return:        boolean
-        """
-        #FIXME check parameter passings: a called macro without PARAMETERS ALL
-        for script in self.scripts:
-            if inPar.name in script:
-                return True
-
-        for _, macroName in self.calledMacros.items():
-            if macroName in SourceXML.replacement_dict:
-                if macroName not in inMacroSet:
-                    if SourceXML.replacement_dict[macroName].checkParameterUsage(inPar, inMacroSet):
-                        return True
-        return False
-
-
-class DestXML (XMLFile, DestFile):
-    def __init__(self, sourceFile, stringFrom = "", stringTo = "", **kwargs):
-        # Renaming
-        if 'targetFileName' in kwargs:
-            self.name     = kwargs['targetFileName']
-        else:
-            self.name     = re.sub(stringFrom, stringTo, sourceFile.name, flags=re.IGNORECASE)
-            # if stringTo not in self.name and bAddStr.get():
-            #     self.name += stringTo
-        if self.name.upper() in SourceXML.dest_dict:
-            i = 1
-            while self.name.upper() + "_" + str(i) in list(SourceXML.dest_dict.keys()):
-                i += 1
-            self.name += "_" + str(i)
-
-        self.relPath                = os.path.join(sourceFile.dirName, self.name + sourceFile.ext)
-
-        super(DestXML, self).__init__(self.relPath, sourceFile=sourceFile)
-        self.warnings               = []
-
-        self.sourceFile             = sourceFile
-        self.guid                   = str(uuid.uuid4()).upper()
-        self.bPlaceable             = sourceFile.bPlaceable
-        self.iVersion               = sourceFile.iVersion
-        self.proDatURL              = ''
-        self.bOverWrite             = False
-        self.bRetainCalledMacros    = False
-
-        self.parameters             = copy.deepcopy(sourceFile.parameters)
-
-        fullPath                    = os.path.join(kwargs["TargetXMLDirName"], self.relPath)
-        if os.path.isfile(fullPath):
-            self.warnings += ["XML Target file exists!"]
-
-        fullGDLPath                 = os.path.join(kwargs["TargetGDLDirName"], self.fileNameWithOutExt + ".gsm")
-        if os.path.isfile(fullGDLPath):
-            self.warnings += ["GDL Target file exists!"]
-
-        # if self.iVersion >= AC_18:
-        #     # AC18 and over: adding licensing statically, can be manually owerwritten on GUI
-        #     self.author         = "LIMA Design"
-        #     self.license        = "CC BY-ND"
-        #     self.licneseVersion = "3.0"
-
-        if self.sourceFile.guid.upper() not in SourceXML.id_dict:
-            # if id_dict[self.sourceFile.guid.upper()] == "":
-            SourceXML.id_dict[self.sourceFile.guid.upper()] = self.guid.upper()
-
-    def getCalledMacro(self):
-        """
-        getting called marco scripts
-        FIXME to be removed
-        :return:
-        """
-
-# -------------------/data classes -------------------------------------------------------------------------------------
