@@ -17,7 +17,9 @@ PAR_FILL        = 9
 PAR_PEN         = 10
 PAR_SEPARATOR   = 11
 PAR_TITLE       = 12
-PAR_COMMENT     = 13
+PAR_BMAT        = 13
+PAR_PROF        = 14
+PAR_COMMENT     = 15
 
 PARFLG_CHILD    = 1
 PARFLG_BOLDNAME = 2
@@ -271,6 +273,10 @@ class ParamSection:
                     parType = PAR_SEPARATOR
                 elif parsedArgs.type in ("Title", ):
                     parType = PAR_TITLE
+                elif parsedArgs.type in ("BuildingMaterial", ):
+                    parType = PAR_BMAT
+                elif parsedArgs.type in ("Profile", ):
+                    parType = PAR_PROF
                 elif parsedArgs.type in ("Comment", ):
                     parType = PAR_COMMENT
                     parName = " " + parName + ": PARAMETER BLOCK ===== PARAMETER BLOCK ===== PARAMETER BLOCK ===== PARAMETER BLOCK "
@@ -371,7 +377,7 @@ class ParamSection:
             arrayValues = None
             if parType in (PAR_LENGTH, PAR_ANGLE, PAR_REAL,):
                 inCol = float(inCol)
-            elif parType in (PAR_INT, PAR_MATERIAL, PAR_LINETYPE, PAR_FILL, PAR_PEN,):
+            elif parType in (PAR_INT, PAR_MATERIAL, PAR_LINETYPE, PAR_FILL, PAR_PEN, PAR_BMAT, PAR_PROF, ):
                 inCol = int(inCol)
             elif parType in (PAR_BOOL,):
                 inCol = bool(int(inCol))
@@ -383,7 +389,7 @@ class ParamSection:
             inCol = None
             if parType in (PAR_LENGTH, PAR_ANGLE, PAR_REAL,):
                 arrayValues = [float(x) if type(x) != list else [float(y) for y in x] for x in inArrayValues]
-            elif parType in (PAR_INT, PAR_MATERIAL, PAR_LINETYPE, PAR_FILL, PAR_PEN,):
+            elif parType in (PAR_INT, PAR_MATERIAL, PAR_LINETYPE, PAR_FILL, PAR_PEN, PAR_BMAT, PAR_PROF, ):
                 arrayValues = [int(x) if type(x) != list else [int(y) for y in x] for x in inArrayValues]
             elif parType in (PAR_BOOL,):
                 arrayValues = [bool(int(x)) if type(x) != list else [bool(int(y)) for y in x] for x in inArrayValues]
@@ -460,7 +466,7 @@ class ResizeableGDLDict(dict):
 
 class Param(object):
     tagBackList = ["", "Length", "Angle", "RealNum", "Integer", "Boolean", "String", "Material",
-                   "LineType", "FillPattern", "PenColor", "Separator", "Title", "Comment"]
+                   "LineType", "FillPattern", "PenColor", "Separator", "Title",  "BuildingMaterial", "Comment"]
 
     def __init__(self, inETree = None,
                  inType = PAR_UNKNOWN,
@@ -562,7 +568,7 @@ class Param(object):
         if self.iType in (PAR_LENGTH, PAR_REAL, PAR_ANGLE):
             # self.digits = 2
             return float(inData)
-        elif self.iType in (PAR_INT, PAR_MATERIAL, PAR_PEN, PAR_LINETYPE, PAR_MATERIAL):
+        elif self.iType in (PAR_INT, PAR_MATERIAL, PAR_PEN, PAR_LINETYPE, PAR_MATERIAL, PAR_BMAT, PAR_PROF, ):
             return int(inData)
         elif self.iType in (PAR_BOOL, ):
             return bool(int(inData))
@@ -779,6 +785,10 @@ class Param(object):
             return PAR_LINETYPE
         elif inString in ("FillPattern"):
             return PAR_FILL
+        elif inString in ("BuildingMaterial"):
+            return PAR_BMAT
+        elif inString in ("Profile"):
+            return PAR_PROF
         elif inString in ("PenColor"):
             return PAR_PEN
         elif inString in ("Separator"):
