@@ -17,9 +17,13 @@ PAR_FILL        = 9
 PAR_PEN         = 10
 PAR_SEPARATOR   = 11
 PAR_TITLE       = 12
-PAR_BMAT        = 13
-PAR_PROF        = 14
-PAR_COMMENT     = 15
+PAR_LIGHTSW     = 13
+PAR_COLORRGB    = 14
+PAR_INTENSITY   = 15
+PAR_BMAT        = 16
+PAR_PROF        = 17
+PAR_DICT        = 18
+PAR_COMMENT     = 19
 
 PARFLG_CHILD    = 1
 PARFLG_BOLDNAME = 2
@@ -273,6 +277,12 @@ class ParamSection:
                     parType = PAR_SEPARATOR
                 elif parsedArgs.type in ("Title", ):
                     parType = PAR_TITLE
+                elif parsedArgs.type in ("LightSwitch", ):
+                    parType = PAR_LIGHTSW
+                elif parsedArgs.type in ("ColorRGB", ):
+                    parType = PAR_COLORRGB
+                elif parsedArgs.type in ("Intensity", ):
+                    parType = PAR_INTENSITY
                 elif parsedArgs.type in ("BuildingMaterial", ):
                     parType = PAR_BMAT
                 elif parsedArgs.type in ("Profile", ):
@@ -466,7 +476,7 @@ class ResizeableGDLDict(dict):
 
 class Param(object):
     tagBackList = ["", "Length", "Angle", "RealNum", "Integer", "Boolean", "String", "Material",
-                   "LineType", "FillPattern", "PenColor", "Separator", "Title",  "BuildingMaterial", "Comment"]
+                   "LineType", "FillPattern", "PenColor", "Separator", "Title", "LightSwitch", "ColorRGB", "Intensity", "BuildingMaterial", "Comment"]
 
     def __init__(self, inETree = None,
                  inType = PAR_UNKNOWN,
@@ -490,6 +500,10 @@ class Param(object):
             self.iType  = inType
             if inTypeStr:
                 self.iType  = self.getTypeFromString(inTypeStr)
+
+            if not self.iType:
+                self.iType = PAR_UNKNOWN
+                print(inName)
 
             self.name   = inName
             if len(self.name) > 32 and self.iType != PAR_COMMENT: self.name = self.name[:32]
@@ -568,7 +582,7 @@ class Param(object):
         if self.iType in (PAR_LENGTH, PAR_REAL, PAR_ANGLE):
             # self.digits = 2
             return float(inData)
-        elif self.iType in (PAR_INT, PAR_MATERIAL, PAR_PEN, PAR_LINETYPE, PAR_MATERIAL, PAR_BMAT, PAR_PROF, ):
+        elif self.iType in (PAR_INT, PAR_MATERIAL, PAR_PEN, PAR_LINETYPE, PAR_FILL, PAR_MATERIAL, PAR_BMAT, PAR_PROF, ):
             return int(inData)
         elif self.iType in (PAR_BOOL, ):
             return bool(int(inData))
@@ -716,7 +730,8 @@ class Param(object):
     def aVals(self):
         if self._aVals is not None:
             maxVal = max([self._aVals[avk].size for avk in list(self._aVals.keys())])
-            aValue = etree.Element("ArrayValues", FirstDimension=str(self._aVals.size), SecondDimension=str(maxVal if maxVal>1 else 0))
+            # aValue = etree.Element("ArrayValues", FirstDimension=str(self._aVals.size), SecondDimension=str(maxVal if maxVal>1 else 0))
+            aValue = etree.Element("ArrayValues", FirstDimension=str(self.__fd), SecondDimension=str(self.__sd))
         else:
             return None
         aValue.text = '\n' + 4 * '\t'
@@ -765,6 +780,14 @@ class Param(object):
         else:
             self._aVals = None
 
+    class UnknownParameter(BaseException):
+        def __init__(self, p_sParName):
+            self.sParName = p_sParName
+
+        def __repr__(self):
+            return self.sParName
+
+
     @staticmethod
     def getTypeFromString(inString):
         if inString in ("Length"):
@@ -795,6 +818,14 @@ class Param(object):
             return PAR_SEPARATOR
         elif inString in ("Title"):
             return PAR_TITLE
+        elif inString in ("LightSwitch"):
+            return PAR_LIGHTSW
+        elif inString in ("ColorRGB"):
+            return PAR_COLORRGB
+        elif inString in ("Intensity"):
+            return PAR_INTENSITY
+        else:
+            raise Param.UnknownParameter(inString)
 
 # -------------------/parameter classes --------------------------------------------------------------------------------
 
