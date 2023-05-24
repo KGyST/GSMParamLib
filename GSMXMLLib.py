@@ -5,16 +5,22 @@ import copy
 
 class GeneralFile(object) :
     """
-    basePath:   C:\...\
-    fullDirName:C:\...\dirName\
-    fullPath:   C:\...\dirName\fileName.ext  -only for sources; dest stuff can always be modified
+    ----- Defined by GeneralFile:
     relPath:           dirName\fileName.ext
     dirName:           dirName
     fileNameWithExt:           fileName.ext
-    name:                      fileName     - for XMLs
-    name:                      fileName.ext - for images
-    fileNameWithOutExt:        fileName     - for images
+    fileNameWithOutExt:        fileName
     ext:                               .ext
+    -----/Defined by GeneralFile
+
+    name:                      fileName     - for XMLs
+    name:                      fileName.ext - for resources
+
+    ----- Defined by own classes (2x2):
+    basePath:   C:\...\
+    fullDirName:C:\...\dirName\
+    fullPath:   C:\...\dirName\fileName.ext  -only for sources; dest stuff can always be modified
+    -----/Defined by own classes (2x2):
 
     Inheritances:
 
@@ -32,111 +38,145 @@ class GeneralFile(object) :
         |               |              |               |
     SourceImage     DestImage       SourceXML       DestXML
     """
-    def __init__(self, relPath, **kwargs):
-        self.relPath            = relPath
-        self.fileNameWithExt    = os.path.basename(relPath)
+    def __init__(self, p_sRelPath: str):
+        self.relPath            = p_sRelPath
+        self.fileNameWithExt    = os.path.basename(p_sRelPath)
         self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
         self.ext                = os.path.splitext(self.fileNameWithExt)[1]
-        self.dirName            = os.path.dirname(relPath)
-        # if 'root' in kwargs:
-        #     self.fullPath = os.path.join(kwargs['root'], self.relPath)
-        #     self.fullDirName         = os.path.dirname(self.fullPath)
+        self.dirName            = os.path.dirname(p_sRelPath)
+        self.fullPath           = os.path.join(self.basePath, p_sRelPath)
+        self.__name             = None
 
-    def refreshFileNames(self):
-        self.fileNameWithExt    = self.name + self.ext
-        self.fileNameWithOutExt = self.name
-        self.relPath            = os.path.join(self.dirName, self.fileNameWithExt)
-
-    def __lt__(self, other):
-        if self.dirName != other.dirName:
-            if self.dirName in other.dirName:
+    def __lt__(self, p_other: 'GeneralFile'):
+        if self.dirName != p_other.dirName:
+            if self.dirName in p_other.dirName:
                 return True
-            elif other.dirName in self.dirName:
+            elif p_other.dirName in self.dirName:
                 return False
             else:
-                return self.dirName.upper() < other.dirName.upper()
-        return self.fileNameWithOutExt.upper() < other.name.upper()
+                return self.dirName.upper() < p_other.dirName.upper()
+        return self.fileNameWithOutExt.upper() < p_other.fileNameWithOutExt.upper()
 
-
-class SourceFile(GeneralFile):
-    def __init__(self, relPath):
-        super(SourceFile, self).__init__(relPath)
-
-
-class DestFile(GeneralFile):
-    def __init__(self, fileName, sourceFile):
-        super(DestFile, self).__init__(fileName)
-        self.sourceFile         = sourceFile
-        self.ext                = self.sourceFile.ext
-
-
-class SourceImage(SourceFile):
-    source_pict_dict = {}
-    sSourceImageDir = ''
-
-    def __init__(self, sourceFile, basePath=''):
-        super(SourceImage, self).__init__(sourceFile)
-        self.name = self.fileNameWithExt
-        self.isEncodedImage = False
-        self.source_pict_dict[self.name.upper()] = self
-        if not basePath:
-            self.fullPath = os.path.join(self.sSourceImageDir, sourceFile)
-        else:
-            self.fullPath = os.path.join(basePath, sourceFile)
-
-
-class DestImage(DestFile):
-    pict_dict = {}
-
-    def __init__(self, sourceFile):
-        self.fileNameWithExt = sourceFile.fileNameWithExt
-        self.fileNameWithOutExt = sourceFile.fileNameWithOutExt
-        self.__name = sourceFile.fileNameWithExt
-
-        self.relPath            = os.path.join(sourceFile.dirName, self.fileNameWithExt)
-        self.sourceFile = sourceFile
-        super(DestImage, self).__init__(self.relPath, self.sourceFile)
-        self.pict_dict[self.__name.upper()] = self
+    def __gt__(self, p_other):
+        # As equality is ruled out
+        return not self.__lt__(p_other)
 
     @property
-    def name(self):
+    def name(self)->str:
         return self.__name
 
     @name.setter
-    def name(self, p_name):
-        self.__name      = p_name
-        self.relPath    = os.path.join(self.dirName, self.__name)
+    def name(self, p_sName):
+        self.relPath = os.path.join(self.dirName, self.fileNameWithExt)
+        self.fullPath = os.path.join(self.basePath, self.relPath)
+        self.__name = p_sName
 
-    def refreshFileNames(self):
-        pass
 
-    #FIXME self.name as @property
+class SourceFile(GeneralFile):
+    def __init__(self, p_sRelPath):
+        super(SourceFile, self).__init__(p_sRelPath)
+
+    @GeneralFile.name.setter
+    def name(self, p_name: str):
+        super(SourceFile, SourceFile).name.__set__(self, p_name)
+
+
+class DestFile(GeneralFile):
+    def __init__(self, p_sourceFile: SourceFile, p_dict:dict, p_sDestDirName:str, p_sDestFileName:str=None, p_sNameFrom:str = "", p_sNameTo:str = "", p_bAddStr:bool=False):
+        self.sourceFile         = p_sourceFile
+        _sName = self.sourceFile.name
+
+        if p_sDestFileName:
+            _sName     = p_sDestFileName
+        elif p_sNameFrom and p_sNameTo and p_bAddStr:
+            if p_sNameTo not in self.name and p_bAddStr:
+                _sName += p_sNameTo
+            else:
+                _sName     = re.sub(p_sNameFrom, p_sNameTo, p_sourceFile.name, flags=re.IGNORECASE)
+        if _sName.upper() in p_dict:
+            i = 1
+            while _sName.upper() + "_" + str(i) in list(p_dict.keys()):
+                i += 1
+            _sName += "_" + str(i)
+
+        self.relPath      = os.path.join(p_sDestDirName, _sName)
+        self.basePath     = p_sDestDirName
+
+        super(DestFile, self).__init__(self.relPath)
+
+        p_dict[self.name.upper()] = self
+
+    @GeneralFile.name.setter
+    def name(self, p_name: str):
+        super(DestFile, DestFile).name.__set__(self, p_name)
+
+
+class ResourceFile(GeneralFile):
+    def __init__(self,  p_sRelPath: str):
+        super().__init__(p_sRelPath)
+        self.name = self.fileNameWithExt
+
+    @GeneralFile.name.setter
+    def name(self, p_name: str):
+        self.fileNameWithExt    = p_name
+        self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
+        self.ext                = os.path.splitext(self.fileNameWithExt)[1]
+        super(ResourceFile, ResourceFile).name.__set__(self, p_name)
 
 
 class XMLFile(GeneralFile):
     all_keywords = set()
 
-    def __init__(self, relPath, **kwargs):
-        super(XMLFile, self).__init__(relPath, **kwargs)
-        self.__name       = self.fileNameWithOutExt
+    def __init__(self, p_sRelPath: str):
+        super(XMLFile, self).__init__(p_sRelPath)
+        self.name        = self.fileNameWithOutExt
         self.bPlaceable  = False
         self.prevPict    = ''
         self.gdlPicts    = []
 
-    def __lt__(self, other):
-        if self.bPlaceable and not other.bPlaceable:
+    def __lt__(self, p_other: 'XMLFile')->bool:
+        if self.bPlaceable and not p_other.bPlaceable:
             return True
-        if not self.bPlaceable and other.bPlaceable:
+        if not self.bPlaceable and p_other.bPlaceable:
             return False
-        return super().__lt__(other)
+        return super().__lt__(p_other)
 
-    @property
-    def name(self):
-        return self.__name
+    def __gt__(self, p_other: 'XMLFile')->bool:
+        return not self.__lt__(p_other)
 
-    @name.setter
+    @GeneralFile.name.setter
+    def name(self, p_name: str):
+        self.ext = ".xml"
+        self.fileNameWithOutExt = p_name
+        self.fileNameWithExt    = p_name + self.ext
+        super(XMLFile, XMLFile).name.__set__(self, p_name)
+
+
+class SourceResource(ResourceFile, SourceFile):
+    source_pict_dict = {}
+    sSourceResourceDir = ''
+
+    def __init__(self, p_sRelPath: str, p_sBasePath: str=''):
+        self.basePath = self.sSourceResourceDir
+        super().__init__(p_sRelPath)
+        self.name = self.fileNameWithExt
+        self.isEncodedImage = False
+        self.source_pict_dict[self.name.upper()] = self
+        if not p_sBasePath:
+            self.fullPath = os.path.join(self.sSourceResourceDir, p_sRelPath)
+        else:
+            self.fullPath = os.path.join(p_sBasePath, p_sRelPath)
+
+
+class DestResource(DestFile, ResourceFile):
+    pict_dict = {}
+    def __init__(self, p_sourceFile:SourceResource, p_sDestDirName:str= '', p_sDestFileName:str=None, p_sNameFrom:str = "", p_sNameTo:str = "", p_bAddStr:bool=False):
+        super().__init__(p_sourceFile, self.pict_dict, p_sDestDirName, p_sDestFileName, p_sNameFrom, p_sNameTo, p_bAddStr)
+
+    @GeneralFile.name.setter
     def name(self, p_name):
-        self.__name   = p_name
+        # self.relPath    = os.path.join(self.dirName, self.__name)
+        super(DestResource, DestResource).name.__set__(self, p_name)
 
 
 class SourceXML (XMLFile, SourceFile):
@@ -144,13 +184,12 @@ class SourceXML (XMLFile, SourceFile):
     replacement_dict = {}   # source filename -> SourceXMLs
     sSourceXMLDir    = ''
 
-    def __init__(self, relPath):
-        # global all_keywords, ID
-        super(SourceXML, self).__init__(relPath)
+    def __init__(self, p_sRelPath):
+        self.basePath = self.sSourceXMLDir
+        super(SourceXML, self).__init__(p_sRelPath)
         self.calledMacros   = {}
         self.parentSubTypes = []
         self.scripts        = {}
-        self.fullPath = os.path.join(self.sSourceXMLDir, relPath)
 
         mroot = etree.parse(self.fullPath, etree.XMLParser(strip_cdata=False))
         self.iVersion = int(mroot.getroot().attrib['Version'])
@@ -167,7 +206,6 @@ class SourceXML (XMLFile, SourceFile):
             self.bPlaceable = True
 
         #Filtering params in source in place of dest cos it's feasible and in dest later added params are unused
-        # FIXME getting calledmacros' guids.
 
         for a in mroot.findall("./Ancestry"):
             for ancestryID in a.findall(self.ID):
@@ -228,61 +266,46 @@ class SourceXML (XMLFile, SourceFile):
         return False
 
 
-class DestXML (XMLFile, DestFile):
+class DestXML (DestFile, XMLFile):
     dest_sourcenames     = set()    # source name     -> DestXMLs, idx by original filename
     id_dict              = {}       # Source GUID     -> dest GUID
     dest_dict            = {}       # dest name       -> DestXML
-    sTargetXMLDir        = ''
+    sDestXMLDir          = ''
     bOverWrite           = False
 
-    def __init__(self, sourceFile, stringFrom = "", stringTo = "", **kwargs):
-        self.name = sourceFile.fileNameWithOutExt
-        if self.name.upper() in self.dest_dict:
-            i = 1
-            while self.name.upper() + "_" + str(i) in list(self.dest_dict.keys()):
-                i += 1
-            self.name += "_" + str(i)
+    def __init__(self, sourceFile:SourceXML, p_sDestFileName:str=None, p_sNameFrom:str = "", p_sNameTo:str = "", p_bAddStr:bool=False, bNewGuid:bool=True):
+        """
+        Initializes an instance of the class.
 
-            # if "XML Target file exists!" in self.warnings:
-            #     self.warnings.remove("XML Target file exists!")
-            #     self.refreshFileNames()
-        self.relPath                = os.path.join(sourceFile.dirName, self.name + sourceFile.ext)
+        Args:
+            sourceFile (SourceXML): The SourceXML object representing the source file.
+            p_sNameFrom (str, optional):
+            p_sNameTo (str, optional):
+            p_sDestFileName (str, optional): The name of the destination file, if completely new
+            p_bAddStr (bool, optional): Flag indicating whether to add a string.
+        """
+        super(DestXML, self).__init__(sourceFile, self.dest_dict, self.sDestXMLDir, p_sDestFileName, p_sNameFrom, p_sNameTo, p_bAddStr)
 
-        super(DestXML, self).__init__(self.relPath, sourceFile=sourceFile)
-        self.warnings               = []
-
-        self.sourceFile             = sourceFile
         self.guid                   = sourceFile.guid
         self.bPlaceable             = sourceFile.bPlaceable
         self.iVersion               = sourceFile.iVersion
-        self.proDatURL              = ''
-        # self.bOverWrite             = False
         self.bRetainCalledMacros    = False
+        self.warnings               = []
 
         self.parameters             = copy.deepcopy(sourceFile.parameters)
 
-        fullPath                    = os.path.join(self.sTargetXMLDir, self.relPath)
-        if os.path.isfile(fullPath):
-            #for overwriting existing xmls while retaining GUIDs etx
+        if os.path.isfile(self.fullPath):
+            #for overwriting existing xmls while retaining GUIDs etc
             if self.bOverWrite:
-                #FIXME to finish it
-                # self.bOverWrite             = True
                 self.bRetainCalledMacros    = True
-                mdp = etree.parse(fullPath, etree.XMLParser(strip_cdata=False))
-                #FIXME where comes ID from?
+                mdp = etree.parse(self.fullPath, etree.XMLParser(strip_cdata=False))
                 self.guid = mdp.getroot().attrib[self.sourceFile.ID]
                 print(mdp.getroot().attrib[self.sourceFile.ID])
             else:
                 self.warnings += ["XML Target file exists!"]
 
-        # fullGDLPath                 = os.path.join(TargetGDLDirName.get(), self.fileNameWithOutExt + ".gsm")
-        # if os.path.isfile(fullGDLPath):
-        #     self.warnings += ["GDL Target file exists!"]
-
         if self.sourceFile.guid.upper() not in self.id_dict:
-            # if id_dict[self.sourceFile.guid.upper()] == "":
             self.id_dict[self.sourceFile.guid.upper()] = self.guid.upper()
 
-        self.dest_dict[self.name.upper()] = self
         self.dest_sourcenames.add(self.sourceFile.name)
 
