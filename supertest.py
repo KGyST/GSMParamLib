@@ -1,6 +1,7 @@
-class Superclass:
+class SuperClass:
     def __init__(self):
-        self._value = None
+        print("SuperClass __init__")
+        super().__init__()
 
     @property
     def value(self):
@@ -10,19 +11,42 @@ class Superclass:
     def value(self, new_value):
         self._value = new_value
         print("Superclass setter called!")
-        # Additional manipulation in the superclass
-        # ...
 
 
-class Subclass(Superclass):
-    @Superclass.value.setter
+class MidClassA(SuperClass):
+    def __init__(self):
+        print("MidClassA __init__")
+        super().__init__()
+
+    @SuperClass.value.setter
     def value(self, new_value):
-        # Additional manipulation in the subclass
-        # ...
-        super(Subclass, Subclass).value.__set__(self, new_value)  # Calling the superclass's setter
-        print("Subclass setter called!")
+        super(MidClassA, self.__class__).value.__set__(self, new_value)
+        print("MidClassA setter called!", MidClassA.__mro__)
 
 
-obj = Subclass()
+class MidClassB(SuperClass):
+    def __init__(self):
+        print("MidClassB __init__")
+        super().__init__()
+
+    @SuperClass.value.setter
+    def value(self, new_value):
+        super(MidClassB, self.__class__).value.__set__(self, new_value)
+        print("MidClassB setter called!", MidClassB.__mro__)
+
+
+class SubClass(MidClassB, MidClassA):
+    def __init__(self):
+        print("SubClass __init__")
+        super().__init__()
+
+    @SuperClass.value.setter
+    def value(self, new_value):
+        super(SubClass, self.__class__).value.__set__(self, new_value)
+        print("Subclass setter called!", SubClass.__mro__)
+
+
+obj = SubClass()
 obj.value = 42
 print(obj.value)
+
