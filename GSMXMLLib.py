@@ -57,7 +57,7 @@ class GeneralFile(object) :
                 return self.dirName.upper() < p_other.dirName.upper()
         return self.fileNameWithOutExt.upper() < p_other.fileNameWithOutExt.upper()
 
-    def __gt__(self, p_other):
+    def __gt__(self, p_other: 'GeneralFile'):
         # As equality is ruled out
         return not self.__lt__(p_other)
 
