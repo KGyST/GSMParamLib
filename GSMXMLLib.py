@@ -77,6 +77,7 @@ class SourceFile(GeneralFile):
         super().__init__(p_sRelPath)
 
     @GeneralFile.name.setter
+    # https://stackoverflow.com/questions/76351958/superclass-property-setting-using-super-and-multiple-inheritance
     def name(self, p_name: str):
         super(SourceFile, self.__class__).name.__set__(self, p_name)
 
