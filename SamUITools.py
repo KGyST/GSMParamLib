@@ -89,3 +89,6 @@ class InputDirPlusText:
             self.entryName.insert(0, self.filename)
         return inputDirName
 
+    def config(self, *args, **kwargs):
+        return self.entryName.config(*args, **kwargs)
+
