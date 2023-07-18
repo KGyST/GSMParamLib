@@ -38,52 +38,71 @@ class GeneralFile(object) :
         |               |              |               |
     SourceImage     DestImage       SourceXML       DestXML
     """
-    def __init__(self, p_sRelPath: str):
-        self.relPath            = p_sRelPath
-        self.fileNameWithExt    = os.path.basename(p_sRelPath)
+    _isBasePathSet = False
+    _basePath = ""
+
+    class BasePathNotSetException(Exception):
+        pass
+
+    def __init__(self, rel_path: str):
+        self.relPath            = rel_path
+        self.fileNameWithExt    = os.path.basename(rel_path)
         self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
         self.ext                = os.path.splitext(self.fileNameWithExt)[1]
-        self.dirName            = os.path.dirname(p_sRelPath)
-        self.fullPath           = os.path.join(self.basePath, p_sRelPath)
+        self.dirName            = os.path.dirname(rel_path)
+        self.fullPath           = os.path.join(self.basePath, rel_path)
         self.__name             = None
 
-    def __lt__(self, p_other: 'GeneralFile'):
-        if self.dirName != p_other.dirName:
-            if self.dirName in p_other.dirName:
+    def __lt__(self, other: 'GeneralFile'):
+        if self.dirName != other.dirName:
+            if self.dirName in other.dirName:
                 return True
-            elif p_other.dirName in self.dirName:
+            elif other.dirName in self.dirName:
                 return False
             else:
-                return self.dirName.upper() < p_other.dirName.upper()
-        return self.fileNameWithOutExt.upper() < p_other.fileNameWithOutExt.upper()
+                return self.dirName.upper() < other.dirName.upper()
+        return self.fileNameWithOutExt.upper() < other.fileNameWithOutExt.upper()
 
-    def __gt__(self, p_other: 'GeneralFile'):
+    def __gt__(self, other: 'GeneralFile'):
         # As equality is ruled out
-        return not self.__lt__(p_other)
+        return not self.__lt__(other)
 
     @property
     def name(self)->str:
         return self.__name
 
     @name.setter
-    def name(self, p_sName):
+    def name(self, name):
         self.relPath = os.path.join(self.dirName, self.fileNameWithExt)
         self.fullPath = os.path.join(self.basePath, self.relPath)
-        self.__name = p_sName
+        self.__name = name
+
+    @property
+    @classmethod
+    def basePath(cls)->str:
+        if not cls._isBasePathSet:
+            raise GeneralFile.BasePathNotSetException("Base Path is not set")
+        return cls._basePath
+
+    @basePath.setter
+    @classmethod
+    def basePath(cls, base_path):
+        cls._isBasePathSet = True
+        cls._basePath = base_path
 
 
 class SourceFile(GeneralFile):
-    def __init__(self, p_sRelPath):
-        super().__init__(p_sRelPath)
+    def __init__(self, rel_path:str):
+        super().__init__(rel_path)
 
     @GeneralFile.name.setter
     # https://stackoverflow.com/questions/76351958/superclass-property-setting-using-super-and-multiple-inheritance
-    def name(self, p_name: str):
-        super(SourceFile, self.__class__).name.__set__(self, p_name)
+    def name(self, name:str):
+        super(SourceFile, self.__class__).name.__set__(self, name)
 
 
 class DestFile(GeneralFile):
-    def __init__(self, source_file: SourceFile, p_dict:dict, dest_dir_name:str, dest_file_name:str=None, name_from:str = "", name_to:str = "", add_str:bool=False):
+    def __init__(self, source_file: SourceFile, dest_names:dict, dest_dir_name:str, dest_file_name:str=None, name_from:str = "", name_to:str = "", add_str:bool=False):
         self.sourceFile         = source_file
         _sName = self.sourceFile.name
 
@@ -94,9 +113,10 @@ class DestFile(GeneralFile):
                 _sName += name_to
             else:
                 _sName     = re.sub(name_from, name_to, source_file.name, flags=re.IGNORECASE)
-        if _sName.upper() in p_dict:
+
+        if _sName.upper() in dest_names:
             i = 1
-            while _sName.upper() + "_" + str(i) in list(p_dict.keys()):
+            while _sName.upper() + "_" + str(i) in list(dest_names.keys()):
                 i += 1
             _sName += "_" + str(i)
 
@@ -105,20 +125,20 @@ class DestFile(GeneralFile):
 
         super().__init__(self.relPath)
 
-        p_dict[self.name.upper()] = self
+        dest_names[self.name.upper()] = self
 
     @GeneralFile.name.setter
-    def name(self, p_name: str):
-        super(DestFile, self.__class__).name.__set__(self, p_name)
+    def name(self, name:str):
+        super(DestFile, self.__class__).name.__set__(self, name)
 
 
 class ResourceFile(GeneralFile):
-    def __init__(self,  p_sRelPath: str):
-        super().__init__(p_sRelPath)
+    def __init__(self, rel_path:str):
+        super().__init__(rel_path)
         self.name = self.fileNameWithExt
 
     @GeneralFile.name.setter
-    def name(self, p_name: str):
+    def name(self, p_name:str):
         self.fileNameWithExt    = p_name
         self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
         self.ext                = os.path.splitext(self.fileNameWithExt)[1]
@@ -128,56 +148,56 @@ class ResourceFile(GeneralFile):
 class XMLFile(GeneralFile):
     all_keywords = set()
 
-    def __init__(self, p_sRelPath: str):
-        super().__init__(p_sRelPath)
+    def __init__(self, rel_path:str):
+        super().__init__(rel_path)
         self.name        = self.fileNameWithOutExt
         self.bPlaceable  = False
         self.prevPict    = ''
         self.gdlPicts    = []
 
-    def __lt__(self, p_other: 'XMLFile')->bool:
-        if self.bPlaceable and not p_other.bPlaceable:
+    def __lt__(self, other:'XMLFile')->bool:
+        if self.bPlaceable and not other.bPlaceable:
             return True
-        if not self.bPlaceable and p_other.bPlaceable:
+        if not self.bPlaceable and other.bPlaceable:
             return False
-        return super().__lt__(p_other)
+        return super().__lt__(other)
 
-    def __gt__(self, p_other: 'XMLFile')->bool:
-        return not self.__lt__(p_other)
+    def __gt__(self, other:'XMLFile')->bool:
+        return not self.__lt__(other)
 
     @GeneralFile.name.setter
-    def name(self, p_name: str):
+    def name(self, name:str):
         self.ext = ".xml"
-        self.fileNameWithOutExt = p_name
-        self.fileNameWithExt    = p_name + self.ext
-        super(XMLFile, self.__class__).name.__set__(self, p_name)
+        self.fileNameWithOutExt = name
+        self.fileNameWithExt    = name + self.ext
+        super(XMLFile, self.__class__).name.__set__(self, name)
 
 
 class SourceResource(ResourceFile, SourceFile):
     source_pict_dict = {}
     sSourceResourceDir = ''
 
-    def __init__(self, p_sRelPath: str, p_sBasePath: str=''):
-        self.basePath = self.sSourceResourceDir
-        super().__init__(p_sRelPath)
+    def __init__(self, rel_path: str, base_path: str= ''):
+        self.__class__.basePath = self.sSourceResourceDir
+        super().__init__(rel_path)
         self.name = self.fileNameWithExt
         self.isEncodedImage = False
         self.source_pict_dict[self.name.upper()] = self
-        if not p_sBasePath:
-            self.fullPath = os.path.join(self.sSourceResourceDir, p_sRelPath)
+        if not base_path:
+            self.fullPath = os.path.join(self.sSourceResourceDir, rel_path)
         else:
-            self.fullPath = os.path.join(p_sBasePath, p_sRelPath)
+            self.fullPath = os.path.join(base_path, rel_path)
 
 
 class DestResource(DestFile, ResourceFile):
     pict_dict = {}
-    def __init__(self, p_sourceFile:SourceResource, dest_dir_name:str= '', dest_file_name:str=None, name_from:str = "", name_to:str = "", add_str:bool=False):
-        super().__init__(p_sourceFile, self.pict_dict, dest_dir_name, dest_file_name, name_from, name_to, add_str)
+    def __init__(self, source_file:SourceResource, dest_dir_name:str= '', dest_file_name:str=None, name_from:str = "", name_to:str = "", add_str:bool=False):
+        super().__init__(source_file, self.pict_dict, dest_dir_name, dest_file_name, name_from, name_to, add_str)
 
     @GeneralFile.name.setter
-    def name(self, p_name):
+    def name(self, name:str):
         # self.relPath    = os.path.join(self.dirName, self.__name)
-        super(DestResource, self.__class__).name.__set__(self, p_name)
+        super(DestResource, self.__class__).name.__set__(self, name)
 
 
 class SourceXML (XMLFile, SourceFile):
@@ -185,9 +205,9 @@ class SourceXML (XMLFile, SourceFile):
     replacement_dict = {}   # source filename -> SourceXMLs
     sSourceXMLDir    = ''
 
-    def __init__(self, p_sRelPath):
-        self.basePath = self.sSourceXMLDir
-        super().__init__(p_sRelPath)
+    def __init__(self, rel_path:str):
+        self.__class__.basePath = self.sSourceXMLDir
+        super().__init__(rel_path)
         self.calledMacros   = {}
         self.parentSubTypes = []
         self.scripts        = {}
@@ -247,22 +267,22 @@ class SourceXML (XMLFile, SourceFile):
 
         self.replacement_dict[self.name.upper()] = self
 
-    def checkParameterUsage(self, inPar, inMacroSet):
+    def checkParameterUsage(self, par, macro_set)->bool:
         """
         Checking whether a certain Parameter is used in the macro or any of its called macros
-        :param inPar:       Parameter
-        :param inMacroSet:  set of macros that the parameter was searched in before
+        :param par:       Parameter
+        :param macro_set:  set of macros that the parameter was searched in before
         :return:        boolean
         """
         #FIXME check parameter passings: a called macro without PARAMETERS ALL
         for script in self.scripts:
-            if inPar.name in script:
+            if par.name in script:
                 return True
 
         for _, macroName in self.calledMacros.items():
             if macroName in self.replacement_dict:
-                if macroName not in inMacroSet:
-                    if self.replacement_dict[macroName].checkParameterUsage(inPar, inMacroSet):
+                if macroName not in macro_set:
+                    if self.replacement_dict[macroName].checkParameterUsage(par, macro_set):
                         return True
         return False
 
