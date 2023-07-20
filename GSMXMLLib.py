@@ -1,4 +1,6 @@
 import os
+import uuid
+
 from GSMParamLib import *
 import copy
 
@@ -78,17 +80,15 @@ class GeneralFile(object) :
         self.__name = name
 
     @property
-    @classmethod
-    def basePath(cls)->str:
-        if not cls._isBasePathSet:
+    def basePath(self)->str:
+        if not self.__class__._isBasePathSet:
             raise GeneralFile.BasePathNotSetException("Base Path is not set")
-        return cls._basePath
+        return self.__class__._basePath
 
     @basePath.setter
-    @classmethod
-    def basePath(cls, base_path):
-        cls._isBasePathSet = True
-        cls._basePath = base_path
+    def basePath(self, base_path):
+        self.__class__._isBasePathSet = True
+        self.__class__._basePath = base_path
 
 
 class SourceFile(GeneralFile):
@@ -178,7 +178,7 @@ class SourceResource(ResourceFile, SourceFile):
     sSourceResourceDir = ''
 
     def __init__(self, rel_path: str, base_path: str= ''):
-        self.__class__.basePath = self.sSourceResourceDir
+        self.basePath = self.sSourceResourceDir
         super().__init__(rel_path)
         self.name = self.fileNameWithExt
         self.isEncodedImage = False
@@ -206,7 +206,7 @@ class SourceXML (XMLFile, SourceFile):
     sSourceXMLDir    = ''
 
     def __init__(self, rel_path:str):
-        self.__class__.basePath = self.sSourceXMLDir
+        self.basePath = self.sSourceXMLDir
         super().__init__(rel_path)
         self.calledMacros   = {}
         self.parentSubTypes = []
@@ -294,7 +294,7 @@ class DestXML (DestFile, XMLFile):
     sDestXMLDir          = ''
     bOverWrite           = False
 
-    def __init__(self, source_file:SourceXML, dest_file_name:str=None, name_from:str = "", name_to:str = "", add_str:bool=False, bNewGuid:bool=True):
+    def __init__(self, source_file:SourceXML, dest_file_name:str=None, name_from:str = "", name_to:str = "", add_str:bool=False, new_guid:bool=True):
         """
         Initializes an instance of the class.
 
@@ -307,7 +307,7 @@ class DestXML (DestFile, XMLFile):
         """
         super().__init__(source_file, self.dest_dict, self.sDestXMLDir, dest_file_name, name_from, name_to, add_str)
 
-        self.guid                   = source_file.guid
+        self.guid                   = source_file.guid if not new_guid else str(uuid.uuid4()).upper()
         self.bPlaceable             = source_file.bPlaceable
         self.iVersion               = source_file.iVersion
         self.bRetainCalledMacros    = False
