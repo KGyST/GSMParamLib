@@ -1,0 +1,22 @@
+<Dictionary Name="polyline">
+			<Description><![CDATA["Polyline"]]></Description>
+			<Flags>
+				<ParFlg_Child/>
+			</Flags>
+			<Value>
+				<Integer Name="isClosed">0</Integer>
+				<Dictionary Name="contour">
+					<Array Name="edges">
+						<Dictionary Index="1">
+							<Integer Name="type">0</Integer>
+							<Dictionary Name="begPoint">
+								<RealNum Name="x">0</RealNum>
+								<RealNum Name="y">0</RealNum>
+							</Dictionary>
+							<RealNum Name="arcAngle">0</RealNum>
+						</Dictionary>
+					</Array>
+				</Dictionary>
+			</Value>
+		</Dictionary>
+		

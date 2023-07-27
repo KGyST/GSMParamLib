@@ -1,6 +1,7 @@
 import argparse
 from lxml import etree
 import re
+import xmltodict, jsonpickle
 
 AC_18   = 28
 
@@ -476,7 +477,7 @@ class ResizeableGDLDict(dict):
 
 class Param(object):
     tagBackList = ["", "Length", "Angle", "RealNum", "Integer", "Boolean", "String", "Material",
-                   "LineType", "FillPattern", "PenColor", "Separator", "Title", "LightSwitch", "ColorRGB", "Intensity", "BuildingMaterial", "Comment"]
+                   "LineType", "FillPattern", "PenColor", "Separator", "Title", "LightSwitch", "ColorRGB", "Intensity", "BuildingMaterial", "Profile", "Dictionary", "Comment"]
 
     def __init__(self, inETree = None,
                  inType = PAR_UNKNOWN,
@@ -549,36 +550,38 @@ class Param(object):
 
     def __setitem__(self, key, value):
         if isinstance(value, list):
-            self._aVals[key] = self.__toFormat(value)
+            self._aVals[key] = self._toFormat(value)
             self.__fd = max(self.__fd, key)
             self.__sd = max(self.__sd, len(value))
         else:
             if self.__sd == 0:
-                self._aVals[key] = self.__toFormat(value)
+                self._aVals[key] = self._toFormat(value)
             else:
-                self._aVals[key] = self.__toFormat(value)
+                self._aVals[key] = self._toFormat(value)
             self.__fd = max(self.__fd, key)
 
     def setValue(self, inVal):
         if type(inVal) == list:
-            self.aVals = self.__toFormat(inVal)
+            self.aVals = self._toFormat(inVal)
             if self.value:
                 print(("WARNING: value -> array change: %s" % self.name))
             self.value = None
         else:
-            self.value = self.__toFormat(inVal)
+            self.value = self._toFormat(inVal)
             if self.aVals:
                 print(("WARNING: array -> value change: %s" % self.name))
             self.aVals = None
 
-    def __toFormat(self, inData):
+    def _toFormat(self, inData):
         """
         Returns data converted from string according to self.iType
         :param inData:
         :return:
         """
+        if isinstance(inData, etree._Element) and self.iType not in (PAR_DICT, ):
+            inData = inData.text
         if type(inData) == list:
-            return list(map(self.__toFormat, inData))
+            return list(map(self._toFormat, inData))
         if self.iType in (PAR_LENGTH, PAR_REAL, PAR_ANGLE):
             # self.digits = 2
             return float(inData)
@@ -588,11 +591,29 @@ class Param(object):
             return bool(int(inData))
         elif self.iType in (PAR_SEPARATOR, PAR_TITLE, ):
             return None
+        elif self.iType in (PAR_DICT, ):
+            inData = etree.tostring(inData, encoding="utf-8", pretty_print=True).decode("UTF-8")
+            return jsonpickle.dumps(xmltodict.parse(inData))
         else:
             return inData
 
+    def _indent(self, elem, level=0):
+        i = "\n" + level * "\t"
+        if len(elem):
+            if not elem.text or not elem.text.strip():
+                elem.text = i + "\t"
+            if not elem.tail or not elem.tail.strip():
+                elem.tail = i
+            for child in elem:
+                self._indent(child, level + 1)
+            if not elem[-1].tail or not elem[-1].tail.strip():
+                elem[-1].tail = i
+        else:
+            if level and (not elem.tail or not elem.tail.strip()):
+                elem.tail = i
+
     def _valueToString(self, inVal):
-        if self.iType in (PAR_STRING, ):
+        if self.iType in (PAR_STRING, PAR_UNKNOWN):
             if inVal is not None:
                 if not isinstance(inVal, str):
                     inVal = str(inVal)
@@ -627,6 +648,8 @@ class Param(object):
             return "0" if not inVal else "1"
         elif self.iType in (PAR_SEPARATOR, ):
             return None
+        elif self.iType in (PAR_DICT,):
+            return xmltodict.unparse(jsonpickle.loads(inVal), pretty=True, full_document=False)
         else:
             return str(inVal)
 
@@ -671,7 +694,14 @@ class Param(object):
                     element.tail = '\n' + nTabs * '\t'
                     flags.append(element)
 
-            if self.value is not None or (self.iType == PAR_STRING and self.aVals is None):
+            if self.iType == PAR_DICT:
+                _dict = jsonpickle.loads(self.value)
+                _xml = xmltodict.unparse(_dict, full_document=False)
+                value = etree.XML(_xml)
+                self._indent(value, 3)
+                value.tail = value.tail[:-1]
+                elem.append(value)
+            elif self.value is not None or (self.iType == PAR_STRING and self.aVals is None):
                 #FIXME above line why string?
                 value = etree.Element("Value")
                 value.text = self._valueToString(self.value)
@@ -690,9 +720,10 @@ class Param(object):
         self.text = inETree.text
         self.tail = inETree.tail
         if not isinstance(inETree, etree._Comment):
-            # self.__eTree = inETree
             self.flags = set()
             self.iType = self.getTypeFromString(inETree.tag)
+            if self.iType == PAR_UNKNOWN:
+                self.tagBackList[self.iType] = inETree.tag
 
             self.name       = inETree.attrib["Name"]
             self.desc       = inETree.find("Description").text
@@ -700,7 +731,7 @@ class Param(object):
 
             val = inETree.find("Value")
             if val is not None:
-                self.value = self.__toFormat(val.text)
+                self.value = self._toFormat(val)
                 self.valTail = val.tail
             else:
                 self.value = None
@@ -763,22 +794,23 @@ class Param(object):
                 for v in inValues.iter("AVal"):
                     x = int(v.attrib["Column"])
                     y = int(v.attrib["Row"])
-                    self._aVals[y][x] = self.__toFormat(v.text)
+                    self._aVals[y][x] = self._toFormat(v.text)
             else:
                 self._aVals = ResizeableGDLDict()
                 for v in inValues.iter("AVal"):
                     y = int(v.attrib["Row"])
-                    self._aVals[y][1] = self.__toFormat(v.text)
+                    self._aVals[y][1] = self._toFormat(v.text)
             self.aValsTail = inValues.tail
         elif isinstance(inValues, list):
             self.__fd = len(inValues)
             self.__sd = len(inValues[0]) if isinstance(inValues[0], list) and len (inValues[0]) > 1 else 0
 
-            _v = list(map(self.__toFormat, inValues))
+            _v = list(map(self._toFormat, inValues))
             self._aVals = ResizeableGDLDict(_v)
             self.aValsTail = '\n' + 2 * '\t'
         else:
             self._aVals = None
+
 
     class UnknownParameter(BaseException):
         def __init__(self, p_sParName):
@@ -824,8 +856,8 @@ class Param(object):
             return PAR_COLORRGB
         elif inString in ("Intensity"):
             return PAR_INTENSITY
+        elif inString in ("Dictionary"):
+            return PAR_DICT
         else:
-            raise Param.UnknownParameter(inString)
-
-# -------------------/parameter classes --------------------------------------------------------------------------------
+            return PAR_UNKNOWN
 
