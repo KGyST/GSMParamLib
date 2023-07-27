@@ -1,0 +1,11 @@
+<Dictionary Name="direction">
+			<Description><![CDATA["Direction unit vector which has to be mirrored"]]></Description>
+			<Flags>
+				<ParFlg_Child/>
+			</Flags>
+			<Value>
+				<RealNum Name="ux">0</RealNum>
+				<RealNum Name="uy">0</RealNum>
+			</Value>
+		</Dictionary>
+		
