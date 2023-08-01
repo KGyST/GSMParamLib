@@ -425,7 +425,7 @@ class ParamSection:
         resultList = []
         for par in self.__paramList:
             if par.iType == p_iType \
-                    and (par.name == param_name or not param_name)\
+                    and (par.name == param_name or not param_name) \
                     and (not param_desc or par.desc == '"' + param_desc + '"')\
                     and (par.value == value or not value):
                 resultList.append(par)
