@@ -8,9 +8,9 @@ from PIL import Image, ImageTk
 # https://stackoverflow.com/questions/12305142/issue-with-singleton-python-call-two-times-init
 def singleton(cls):
     singletons = {}
-    def getinstance():
+    def getinstance(*args, **kwargs):
         if cls not in singletons:
-            singletons[cls] = cls()
+            singletons[cls] = cls(*args, **kwargs)
         return singletons[cls]
     return getinstance
 

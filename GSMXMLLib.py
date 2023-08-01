@@ -120,7 +120,8 @@ class DestFile(GeneralFile):
                 i += 1
             _sName += "_" + str(i)
 
-        self.relPath      = os.path.join(dest_dir_name, _sName)
+        # self.relPath      = os.path.join(dest_dir_name, _sName)
+        self.relPath      = self.sourceFile.relPath
         self.basePath     = dest_dir_name
 
         super().__init__(self.relPath)
