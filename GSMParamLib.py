@@ -70,6 +70,8 @@ class ParamSection:
     def __init__(self, inETree):
         # self.eTree          = inETree
         self.__header       = etree.tostring(inETree.find("ParamSectHeader"))
+        self.__wdo          = etree.tostring(inETree.find("WDOrientation")) if inETree.find("WDOrientation") is not None else ""
+        self.__wdf          = etree.tostring(inETree.find("WDFrameExpression")) if inETree.find("WDFrameExpression") is not None else ""
         self.__paramList    = []
         self.__paramDict    = {}
         self.__index        = 0
@@ -223,6 +225,22 @@ class ParamSection:
                 if self.__paramList[ix + 1].iType == PAR_COMMENT:
                     elem.tail = '\n\n\t\t'
             parTree.append(elem)
+        if self.__wdf:
+            parTree.tail = '\n\t'
+            _wdf = etree.fromstring(self.__wdf)
+            for _w in _wdf.iterchildren():
+                if _w.text is not None:
+                    _w.text = etree.CDATA(_w.text)
+            _wdf.tail = '\n\t'
+            eTree.append(_wdf)
+        if self.__wdo:
+            parTree.tail = '\n\t'
+            _wdo = etree.fromstring(self.__wdo)
+            for _w in _wdo.iterchildren():
+                if _w.text is not None:
+                    _w.text = etree.CDATA(_w.text)
+            _wdo.tail = '\n'
+            eTree.append(_wdo)
         return eTree
 
     def createParamfromCSV(self, inParName, inCol, inArrayValues = None):
@@ -425,9 +443,9 @@ class ParamSection:
         resultList = []
         for par in self.__paramList:
             if par.iType == p_iType \
-                    and (par.name == param_name or not param_name)\
-                    and (not param_desc or par.desc == '"' + param_desc + '"')\
+                    and (par.name == param_name or not param_name) \
                     and (par.value == value or not value):
+                    # and (not param_desc or par.desc == '"' + param_desc + '"')\
                 resultList.append(par)
         return resultList
 
@@ -649,9 +667,17 @@ class Param(object):
         elif self.iType in (PAR_SEPARATOR, ):
             return None
         elif self.iType in (PAR_DICT,):
-            return xmltodict.unparse(jsonpickle.loads(inVal), pretty=True, full_document=False)
+            return self._cdataize(xmltodict.unparse(jsonpickle.loads(inVal), pretty=True, full_document=False))
         else:
             return str(inVal)
+
+    @staticmethod
+    def _cdataize(p_etree):
+        string_elements = p_etree.xpath('//String')
+
+        for element in string_elements:
+            element.text = etree.CDATA(element.text)
+        return p_etree
 
     @property
     def eTree(self):
@@ -697,7 +723,7 @@ class Param(object):
             if self.iType == PAR_DICT:
                 _dict = jsonpickle.loads(self.value)
                 _xml = xmltodict.unparse(_dict, full_document=False)
-                value = etree.XML(_xml)
+                value = self._cdataize(etree.XML(_xml))
                 self._indent(value, 3)
                 value.tail = value.tail[:-1]
                 elem.append(value)

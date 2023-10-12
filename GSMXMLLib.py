@@ -120,7 +120,8 @@ class DestFile(GeneralFile):
                 i += 1
             _sName += "_" + str(i)
 
-        self.relPath      = os.path.join(dest_dir_name, _sName)
+        # self.relPath      = os.path.join(dest_dir_name, _sName)
+        self.relPath      = self.sourceFile.relPath
         self.basePath     = dest_dir_name
 
         super().__init__(self.relPath)
@@ -300,10 +301,11 @@ class DestXML (DestFile, XMLFile):
 
         Args:
             source_file (SourceXML): The SourceXML object representing the source file.
-            name_from (str, optional):
-            name_to (str, optional):
+            name_from (str, optional): if string replacement, this string to be replaced, regex...
+            name_to (str, optional): ... with this one
             dest_file_name (str, optional): The name of the destination file, if completely new
-            add_str (bool, optional): Flag indicating whether to add a string.
+            add_str (bool, optional): Indicating whether to add a string.
+            new_guid (bool, optional): or retain the old guid
         """
         super().__init__(source_file, self.dest_dict, self.sDestXMLDir, dest_file_name, name_from, name_to, add_str)
 
