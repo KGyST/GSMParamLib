@@ -50,6 +50,7 @@ PARAM_TYPES = {"Pens":      PAR_PEN,
                "Real":      PAR_REAL,
                "Angle":     PAR_ANGLE,
                "Length":    PAR_LENGTH,
+               "Building Materials":    PAR_BMAT,
 }
 
 # ------------------- parameter classes --------------------------------------------------------------------------------
@@ -443,9 +444,9 @@ class ParamSection:
         resultList = []
         for par in self.__paramList:
             if par.iType == p_iType \
-                    and (par.name == param_name or not param_name) \
-                    and (par.value == value or not value):
-                    # and (not param_desc or par.desc == '"' + param_desc + '"')\
+                and (par.name == param_name or not param_name) \
+                and (par.value == value or not value):
+                # and (not param_desc or par.desc == '"' + param_desc + '"')\
                 resultList.append(par)
         return resultList
 
