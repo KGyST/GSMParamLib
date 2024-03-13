@@ -198,7 +198,7 @@ class InputDirPlusText:
         self.target = target
         self.filename = ''
         self._frame = tk.Frame(top)
-        self._frame.grid({"row": row, "column": column})
+        self._frame.grid({"row": row, "column": column, "sticky": tk.E + tk.W, })
 
         self._frame.columnconfigure(1, weight=1)
 

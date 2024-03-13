@@ -452,7 +452,7 @@ class ParamSection:
 
 class ResizeableGDLDict(dict):
     """
-    List child with incexing from 1 instead of 0
+    List child with indexing from 1 instead of 0
     writing outside of list size resizes list
     """
     def __new__(cls, *args, **kwargs):
