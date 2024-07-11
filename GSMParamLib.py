@@ -1,4 +1,6 @@
 import argparse
+import copy
+
 from lxml import etree
 import re
 import xmltodict, jsonpickle
@@ -457,16 +459,17 @@ class ResizeableGDLDict(dict):
     writing outside of list size resizes list
     """
     def __new__(cls, *args, **kwargs):
-        res = super().__new__(ResizeableGDLDict, *args, **kwargs)
-        res.firstLevel = True
-        res.size = 0
+        result = super().__new__(ResizeableGDLDict, *args, **kwargs)
+        result.firstLevel = True
+        result.size = 0
 
-        return res
+        return result
 
     def __init__(self, inObj=None, firstLevel = True):
         self.size = 0
-        self.firstLevel = firstLevel    #For determining first or second level
+        self.firstLevel = firstLevel    # For determining first or second level
         if not inObj:
+            # Empty
             super(ResizeableGDLDict, self).__init__(self)
         elif isinstance(inObj, list):
             _d = {}
@@ -492,6 +495,15 @@ class ResizeableGDLDict(dict):
         else:
             dict.__setitem__(self, key, value)
         self.size = max(self.size, key)
+
+    # def filled_copy(self, value):
+    #     result = copy.deepcopy(self)
+    #     for item in result.values():
+    #         if isinstance(item, list):
+    #             item = {k: value for k, v in item}
+    #         else:
+    #             item = value
+    #     return result
 
 
 class Param(object):
@@ -839,7 +851,7 @@ class Param(object):
             self._aVals = None
 
 
-    class UnknownParameter(BaseException):
+    class UnknownParameter( BaseException):
         def __init__(self, p_sParName):
             self.sParName = p_sParName
 
