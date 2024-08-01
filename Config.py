@@ -24,7 +24,7 @@ class Config:
     def getConfigFromFile(self):
         self.appDataDir = os.getenv('APPDATA')
         if os.path.isfile(self._sDefaultConfigPath):
-            self._currentConfig.read(self._sDefaultConfigPath, encoding="UTF-8")
+            self._currentConfig.read(self._sCurrentConfigPath, encoding="UTF-8")
         self._defaultConfig.read(self._sDefaultConfigPath, encoding="UTF-8")
 
     def __getitem__(self, item):
@@ -40,7 +40,6 @@ class Config:
             except KeyError:
                 self._currentConfig[_sec][item] = ''
                 return self._currentConfig[_sec][item]
-
 
     def __setitem__(self, key, value:str):
         self._currentConfig[self._currentSection][key] = value
