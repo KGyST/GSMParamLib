@@ -53,7 +53,7 @@ PARAM_TYPES = {"Pens":      PAR_PEN,
                "Angle":     PAR_ANGLE,
                "Length":    PAR_LENGTH,
                "Building Materials":    PAR_BMAT,
-}
+               }
 
 # ------------------- parameter classes --------------------------------------------------------------------------------
 
@@ -264,6 +264,7 @@ class ParamSection:
         ap.add_argument("-r", "--remove", action='store_true')
         ap.add_argument("-1", "--firstDimension")
         ap.add_argument("-2", "--secondDimension")
+        # ap.add_argument("-t", "--dictionary")
 
         parsedArgs = ap.parse_known_args(splitPars)[0]
 
@@ -435,19 +436,19 @@ class ParamSection:
                      inValue=inCol,
                      inAVals=arrayValues)
 
-    def getParamsByType(self, p_iType):
+    def getParamsByType(self, param_type):
         resultList = []
         for par in self.__paramList:
-            if par.iType == p_iType:
+            if par.iType == param_type:
                 resultList.append(par)
         return resultList
 
-    def getParamsByTypeNameAndValue(self, p_iType, param_name = "", param_desc = "", value = None):
+    def getParamsByTypeNameAndValue(self, param_type, param_name ="", param_desc ="", value = None):
         resultList = []
         for par in self.__paramList:
-            if par.iType == p_iType \
-                and (par.name == param_name or not param_name) \
-                and (par.value == value or not value):
+            if par.iType == param_type \
+                    and (par.name == param_name or not param_name) \
+                    and (par.value == value or not value):
                 # and (not param_desc or par.desc == '"' + param_desc + '"')\
                 resultList.append(par)
         return resultList
@@ -455,7 +456,7 @@ class ParamSection:
 
 class ResizeableGDLDict(dict):
     """
-    List child with incexing from 1 instead of 0
+    List child with indexing from 1 instead of 0
     writing outside of list size resizes list
     """
     def __new__(cls, *args, **kwargs):
@@ -495,15 +496,6 @@ class ResizeableGDLDict(dict):
         else:
             dict.__setitem__(self, key, value)
         self.size = max(self.size, key)
-
-    # def filled_copy(self, value):
-    #     result = copy.deepcopy(self)
-    #     for item in result.values():
-    #         if isinstance(item, list):
-    #             item = {k: value for k, v in item}
-    #         else:
-    #             item = value
-    #     return result
 
 
 class Param(object):
@@ -591,14 +583,32 @@ class Param(object):
                 self._aVals[key] = self._toFormat(value)
             self.__fd = max(self.__fd, key)
 
-    def setValue(self, inVal):
-        if type(inVal) == list:
-            self.aVals = self._toFormat(inVal)
+    def setValue(self, value):
+        """
+        {
+            "P1": 2,
+            "P2": "a"
+        } (Tárgy - 001 | 8BC2FDBA-5B66-4DB7-9E73-02CCC32BEA1E)
+    <Dictionary Name="dTest">
+      <Description><![CDATA[""]]></Description>
+      <Value>
+        <RealNum Name="P1">2.1</RealNum>
+        <Dictionary Name="P2">
+          <Integer Name="P1">1</Integer>
+          <String Name="P2"><![CDATA["b"]]></String>
+        </Dictionary>
+      </Value>
+    </Dictionary>
+        """
+        if isinstance(value, list):
+            self.aVals = self._toFormat(value)
             if self.value:
                 print(("WARNING: value -> array change: %s" % self.name))
             self.value = None
+        elif isinstance(value, dict):
+            raise NotImplementedError
         else:
-            self.value = self._toFormat(inVal)
+            self.value = self._toFormat(value)
             if self.aVals:
                 print(("WARNING: array -> value change: %s" % self.name))
             self.aVals = None
@@ -825,7 +835,7 @@ class Param(object):
 
     @aVals.setter
     def aVals(self, inValues):
-        if type(inValues) == etree._Element:
+        if isinstance(inValues, etree._Element):
             self.__fd = int(inValues.attrib["FirstDimension"])
             self.__sd = int(inValues.attrib["SecondDimension"])
             if self.__sd > 0:
@@ -849,6 +859,50 @@ class Param(object):
             self.aValsTail = '\n' + 2 * '\t'
         else:
             self._aVals = None
+
+    def getHashableIDs(self, include_name:bool=True):
+        _sep = "."
+        _pre = self.name if include_name else ""
+        if self._aVals:
+            if self.__sd:
+                result = []
+                for _i in range(self.__fd):
+                    result.extend(["".join([_pre, str(_i), str(_j), ]) for _j in range(self.__sd)])
+            else:
+                result = ["".join([_pre, str(_i)]) for _i in range(self.__fd)]
+            return result
+        elif self.iType == PAR_DICT:
+            raise NotImplementedError
+        else:
+            return [_pre]
+
+    def getValueByPath(self, path:str = ""):
+        lPath = [path.split(".")]
+        if self._aVals:
+            _fd = lPath[0]
+            if self.__sd:
+                _sd = lPath[1]
+                return self[_fd][_sd]
+            else:
+                return self[_fd]
+        elif self.iType == PAR_DICT:
+            raise NotImplementedError
+        else:
+            return self.value
+
+    def setValueByPath(self, path:str, value):
+        lPath = [path.split(".")]
+        if self._aVals:
+            _fd = lPath[0]
+            if self.__sd:
+                _sd = lPath[1]
+                self._aVals[_fd][_sd] = value
+            else:
+                self._aVals[_fd] = value
+        elif self.iType == PAR_DICT:
+            raise NotImplementedError
+        else:
+            self.value = value
 
 
     class UnknownParameter( BaseException):
