@@ -1,9 +1,9 @@
 import argparse
-import copy
 
 from lxml import etree
 import re
 import xmltodict, jsonpickle
+from decorator import Dumper
 
 AC_18   = 28
 
@@ -49,10 +49,11 @@ PARAM_TYPES = {"Pens":      PAR_PEN,
                "Strings":   PAR_STRING,
                "Booleans":  PAR_BOOL,
                "Integers":  PAR_INT,
-               "Real":      PAR_REAL,
-               "Angle":     PAR_ANGLE,
-               "Length":    PAR_LENGTH,
+               "Reals":     PAR_REAL,
+               "Angles":    PAR_ANGLE,
+               "Lengths":   PAR_LENGTH,
                "Building Materials":    PAR_BMAT,
+               "Profiles":    PAR_PROF,
                }
 
 # ------------------- parameter classes --------------------------------------------------------------------------------
@@ -220,14 +221,17 @@ class ParamSection:
         parTree.tail = '\n'
         eTree.append(parTree)
         for par in self.__paramList:
-            elem = par.eTree
-            ix = self.__paramList.index(par)
-            if ix == len(self.__paramList) - 1:
-                elem.tail = '\n\t'
-            else:
-                if self.__paramList[ix + 1].iType == PAR_COMMENT:
-                    elem.tail = '\n\n\t\t'
-            parTree.append(elem)
+            try:
+                elem = par.eTree
+                ix = self.__paramList.index(par)
+                if ix == len(self.__paramList) - 1:
+                    elem.tail = '\n\t'
+                else:
+                    if self.__paramList[ix + 1].iType == PAR_COMMENT:
+                        elem.tail = '\n\n\t\t'
+                parTree.append(elem)
+            except Exception as e:
+                print(e)
         if self.__wdf:
             parTree.tail = '\n\t'
             _wdf = etree.fromstring(self.__wdf)
@@ -353,7 +357,7 @@ class ParamSection:
                     param.flags.add(PARFLG_CHILD)
                 self.insertBefore(parsedArgs.frontof, param)
             else:
-                #FIXME writing tests for this
+                # FIXME writing tests for this
                 self.append(param, parName)
 
             if parType == PAR_TITLE:
@@ -421,13 +425,13 @@ class ParamSection:
         else:
             inCol = None
             if parType in (PAR_LENGTH, PAR_ANGLE, PAR_REAL,):
-                arrayValues = [float(x) if type(x) != list else [float(y) for y in x] for x in inArrayValues]
+                arrayValues = [float(x) if not isinstance(x, list) else [float(y) for y in x] for x in inArrayValues]
             elif parType in (PAR_INT, PAR_MATERIAL, PAR_LINETYPE, PAR_FILL, PAR_PEN, PAR_BMAT, PAR_PROF, ):
-                arrayValues = [int(x) if type(x) != list else [int(y) for y in x] for x in inArrayValues]
+                arrayValues = [int(x) if not isinstance(x, list) else [int(y) for y in x] for x in inArrayValues]
             elif parType in (PAR_BOOL,):
-                arrayValues = [bool(int(x)) if type(x) != list else [bool(int(y)) for y in x] for x in inArrayValues]
+                arrayValues = [bool(int(x)) if not isinstance(x, list) else [bool(int(y)) for y in x] for x in inArrayValues]
             elif parType in (PAR_STRING,):
-                arrayValues = [x if type(x) != list else [y for y in x] for x in inArrayValues]
+                arrayValues = [x if not isinstance(x, list) else [y for y in x] for x in inArrayValues]
             elif parType in (PAR_TITLE,):
                 inCol = None
 
@@ -443,15 +447,41 @@ class ParamSection:
                 resultList.append(par)
         return resultList
 
-    def getParamsByTypeNameAndValue(self, param_type, param_name ="", param_desc ="", value = None):
+    def getParamsByTypeNameAndValue(self, param_type, param_name="", param_desc ="", value=None):
         resultList = []
         for par in self.__paramList:
             if par.iType == param_type \
+                    and par.iType != PAR_DICT \
                     and (par.name == param_name or not param_name) \
                     and (par.value == value or not value):
                 # and (not param_desc or par.desc == '"' + param_desc + '"')\
                 resultList.append(par)
+            elif par.iType == PAR_DICT:
+                ...
         return resultList
+
+    # @Dumper(active=True)
+    def getParamIDsByTypeNameAndValue(self, param_type, param_name="", param_desc="", value=None):
+        resultList = []
+        for par in self.__paramList:
+            if par.iType == param_type \
+            and par.iType != PAR_DICT \
+            and (par.name == param_name or not param_name):
+            # and (par.value == value or not value):
+            # and (not param_desc or par.desc == '"' + param_desc + '"')\
+                for path in par.getHashableIDs():
+                    by_path = par.getValueByPath(".".join(path.split(".")[1:]))
+                    if by_path == value or not value:
+                        # resultList.extend(par.getHashableIDs())
+                        resultList.append(path)
+            elif par.iType == PAR_DICT:
+                ...
+        return resultList
+
+    def setValueByPath(self, path:str, value):
+        lPath = path.split(".")
+        sParName = lPath[0]
+        self[sParName].setValueByPath(".".join(lPath[1:]), value)
 
 
 class ResizeableGDLDict(dict):
@@ -553,6 +583,7 @@ class Param(object):
                 self._aVals = None
                 self.value  = None
             elif self.iType == PAR_COMMENT:
+                print(self.name)
                 pass
         self.isInherited    = False
         self.isUsed         = True
@@ -582,6 +613,9 @@ class Param(object):
             else:
                 self._aVals[key] = self._toFormat(value)
             self.__fd = max(self.__fd, key)
+
+    def __repr__(self):
+        return self.name
 
     def setValue(self, value):
         """
@@ -621,7 +655,7 @@ class Param(object):
         """
         if isinstance(inData, etree._Element) and self.iType not in (PAR_DICT, ):
             inData = inData.text
-        if type(inData) == list:
+        if isinstance(inData, list):
             return list(map(self._toFormat, inData))
         if self.iType in (PAR_LENGTH, PAR_REAL, PAR_ANGLE):
             # self.digits = 2
@@ -809,7 +843,7 @@ class Param(object):
     @property
     def aVals(self):
         if self._aVals is not None:
-            maxVal = max([self._aVals[avk].size for avk in list(self._aVals.keys())])
+            # maxVal = max([self._aVals[avk].size if isinstance(self._aVals[avk], list) else 0 for avk in list(self._aVals.keys())])
             # aValue = etree.Element("ArrayValues", FirstDimension=str(self._aVals.size), SecondDimension=str(maxVal if maxVal>1 else 0))
             aValue = etree.Element("ArrayValues", FirstDimension=str(self.__fd), SecondDimension=str(self.__sd))
         else:
@@ -819,14 +853,18 @@ class Param(object):
 
         for _i, rowIdx in enumerate(self._aVals):
             row = self._aVals[rowIdx]
-            for _j, colIdx in enumerate(row):
-                cell = row[colIdx]
-                if self.__sd:
+            if self.__sd:
+                for _j, colIdx in enumerate(row):
+                    cell = row[colIdx]
                     arrayValue = etree.Element("AVal", Column=str(colIdx), Row=str(rowIdx))
                     nTabs = 4 #if _j == len(row) and _i == len(self._aVals) else 4
-                else:
-                    arrayValue = etree.Element("AVal", Row=str(rowIdx))
-                    nTabs = 4 #if _i == len(self._aVals) - 1 else 4
+                    arrayValue.tail = '\n' + nTabs * '\t'
+                    aValue.append(arrayValue)
+                    arrayValue.text = self._valueToString(cell)
+            else:
+                cell = row
+                arrayValue = etree.Element("AVal", Row=str(rowIdx))
+                nTabs = 4  # if _i == len(self._aVals) - 1 else 4
                 arrayValue.tail = '\n' + nTabs * '\t'
                 aValue.append(arrayValue)
                 arrayValue.text = self._valueToString(cell)
@@ -848,7 +886,7 @@ class Param(object):
                 self._aVals = ResizeableGDLDict()
                 for v in inValues.iter("AVal"):
                     y = int(v.attrib["Row"])
-                    self._aVals[y][1] = self._toFormat(v.text)
+                    self._aVals[y] = self._toFormat(v.text)
             self.aValsTail = inValues.tail
         elif isinstance(inValues, list):
             self.__fd = len(inValues)
@@ -862,26 +900,28 @@ class Param(object):
 
     def getHashableIDs(self, include_name:bool=True):
         _sep = "."
-        _pre = self.name if include_name else ""
         if self._aVals:
             if self.__sd:
-                result = []
-                for _i in range(self.__fd):
-                    result.extend(["".join([_pre, str(_i), str(_j), ]) for _j in range(self.__sd)])
+                result = [_sep.join([str(_i + 1), str(_j + 1), ]) for _i in range(self.__fd) for _j in range(self.__sd)]
             else:
-                result = ["".join([_pre, str(_i)]) for _i in range(self.__fd)]
+                result = [str(_i + 1) for _i in range(self.__fd)]
+            if include_name:
+                result = [_sep.join([self.name, _r]) for _r in result]
             return result
         elif self.iType == PAR_DICT:
             raise NotImplementedError
         else:
-            return [_pre]
+            if include_name:
+                return [self.name]
+            else:
+                return []
 
-    def getValueByPath(self, path:str = ""):
-        lPath = [path.split(".")]
+    def getValueByPath(self, path: str = ""):
+        lPath = path.split(".")
         if self._aVals:
-            _fd = lPath[0]
+            _fd = int(lPath[0])
             if self.__sd:
-                _sd = lPath[1]
+                _sd = int(lPath[1])
                 return self[_fd][_sd]
             else:
                 return self[_fd]
@@ -891,11 +931,11 @@ class Param(object):
             return self.value
 
     def setValueByPath(self, path:str, value):
-        lPath = [path.split(".")]
+        lPath = path.split(".")
         if self._aVals:
-            _fd = lPath[0]
+            _fd = int(lPath[0])
             if self.__sd:
-                _sd = lPath[1]
+                _sd = int(lPath[1])
                 self._aVals[_fd][_sd] = value
             else:
                 self._aVals[_fd] = value
