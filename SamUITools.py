@@ -222,6 +222,9 @@ class InputDirPlusText:
     def config(self, *args, **kwargs):
         return self.entryName.config(*args, **kwargs)
 
+    def setBackground(self, background: str):
+        self.entryName.config({"bg": background})
+
 
 # class InputDirPlusRadio():
 #     def __init__(self, top, text, target, var, varValue, tooltip='', row=0, column=0, **kwargs):

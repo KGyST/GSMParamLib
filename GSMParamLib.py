@@ -3,7 +3,10 @@ import argparse
 from lxml import etree
 import re
 import xmltodict, jsonpickle
-from decorator import Dumper
+try:
+    from decorator import Dumper
+except ImportError:
+    pass
 
 AC_18   = 28
 

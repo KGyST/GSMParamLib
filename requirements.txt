@@ -1,1 +1,3 @@
 lxml
+jsonpickle
+xmltodict
