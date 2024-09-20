@@ -1,7 +1,7 @@
 import os
 import uuid
 
-from GSMParamLib import *
+from GSMParamLib.GSMParamLib import *
 import copy
 
 

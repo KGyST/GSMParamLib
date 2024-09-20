@@ -3,10 +3,8 @@ import argparse
 from lxml import etree
 import re
 import xmltodict, jsonpickle
-try:
-    from decorator import Dumper
-except ImportError:
-    pass
+
+from samuTeszt import Dumper
 
 AC_18   = 28
 
@@ -450,7 +448,7 @@ class ParamSection:
                 resultList.append(par)
         return resultList
 
-    def getParamsByTypeNameAndValue(self, param_type, param_name="", param_desc ="", value=None):
+    def getParamsByTypeNameAndValue(self, param_type, param_name="", param_desc="", value=None):
         resultList = []
         for par in self.__paramList:
             if par.iType == param_type \
@@ -463,7 +461,7 @@ class ParamSection:
                 ...
         return resultList
 
-    # @Dumper(active=True)
+    @Dumper()
     def getParamIDsByTypeNameAndValue(self, param_type, param_name="", param_desc="", value=None):
         resultList = []
         for par in self.__paramList:
@@ -593,10 +591,13 @@ class Param(object):
 
     def __iter__(self):
         if self._aVals:
+            self.__index = 0
             return self
+        else:
+            return iter([])
 
     def __next__(self):
-        if self.__index >= len(self._aVals) - 1:
+        if not self._aVals or self.__index >= len(self._aVals) - 1:
             raise StopIteration
         else:
             self.__index += 1
@@ -742,7 +743,7 @@ class Param(object):
     @property
     def eTree(self):
         if self.iType < PAR_COMMENT:
-            tagString = self.tagBackList[self.iType]
+            tagString = self.__class__.tagBackList[self.iType]
             elem = etree.Element(tagString, Name=self.name)
             nTabs = 3 if self.desc or self.flags is not None or self.value is not None or self.aVals is not None else 2
             elem.text = '\n' + nTabs * '\t'
@@ -809,7 +810,7 @@ class Param(object):
             self.flags = set()
             self.iType = self.getTypeFromString(inETree.tag)
             if self.iType == PAR_UNKNOWN:
-                self.tagBackList[self.iType] = inETree.tag
+                self.__class__.tagBackList[self.iType] = inETree.tag
 
             self.name       = inETree.attrib["Name"]
             self.desc       = inETree.find("Description").text

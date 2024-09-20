@@ -1,4 +1,4 @@
-from SamUITools import singleton
+from .SamUITools import singleton
 import configparser
 import os
 # FIXME using registry instead of config file, at least optionally
