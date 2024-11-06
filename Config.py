@@ -1,7 +1,8 @@
 from SamUITools import singleton
 import configparser
 import os
-# FIXME using registry instead of config file, at least optionally using a class interface
+# FIXME using registry instead of config file, at least optionally using a class interface/DI
+import tkinter as tk
 
 #----------------- config classes -----------------------------------------------------------------------------------------
 
@@ -12,6 +13,7 @@ class Config:
   default_section: str = None - usually 'ArchCAD' by default
   """
   def __init__(self, app_name: str = "application", default_section: str = "DEFAULT"):
+    self._regVars = {}
     self._appName = app_name
     self._currentConfig = configparser.ConfigParser()
     self._defaultConfig = configparser.ConfigParser()
@@ -20,7 +22,6 @@ class Config:
     assert os.path.isfile(self._sDefaultConfigPath)
 
     self._sCurrentConfigPath = os.path.join(os.getenv('APPDATA'), self._sDefaultConfigPath)
-
     self.getConfigFromFile()
     self.setCurrentSection(default_section)
 
@@ -49,8 +50,11 @@ class Config:
 
   def setCurrentSection(self, section:str):
     self._currentSection = section
+    if section not in self._regVars:
+      self._regVars[section] = {}
 
   def writeConfigBack(self, default: bool = False, exclude_list: list[str]  = None):
+    self._update_current_vars()
     if default:
       conf_this = self._defaultConfig
       conf_that = self._currentConfig
@@ -64,4 +68,17 @@ class Config:
 
     with open(self._sCurrentConfigPath, 'w', encoding="UTF-8") as configFile:
       conf_this.write(configFile)
+
+  def register(self, field:str, data: tk.Variable):
+    _curVars = self._regVars[self._currentSection]
+    _curVars[field] = data
+    _curVars[field].set(self._currentConfig[self._currentSection][field])
+    return _curVars[field]
+
+  def _update_current_vars(self):
+    for _curVarName, _curVarValue in self._regVars[self._currentSection].items():
+      if isinstance(_curVarValue, tk.BooleanVar):
+        self._currentConfig[self._currentSection][_curVarName] = str(_curVarValue.get())
+      else:
+        self._currentConfig[self._currentSection][_curVarName] = _curVarValue.get()
 
