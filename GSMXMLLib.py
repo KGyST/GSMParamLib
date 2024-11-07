@@ -47,6 +47,8 @@ class GeneralFile(object) :
     pass
 
   def __init__(self, rel_path: str):
+    assert os.path.exists(self.basePath)
+
     self.relPath            = rel_path
     self.fileNameWithExt    = os.path.basename(rel_path)
     self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
@@ -95,14 +97,14 @@ class GeneralFile(object) :
 class SourceFile(GeneralFile):
   def __init__(self, rel_path:str):
     super().__init__(rel_path)
-    assert os.path.exists(self.fullPath)
+    # assert os.path.exists(self.fullPath)
 
   @GeneralFile.name.setter
   # https://stackoverflow.com/questions/76351958/superclass-property-setting-using-super-and-multiple-inheritance
   def name(self, name:str):
     assert len(name)
     super(SourceFile, self.__class__).name.__set__(self, name)
-    assert os.path.exists(self.fullPath)
+    # assert os.path.exists(self.fullPath)
 
 
 class DestFile(GeneralFile):
@@ -223,6 +225,7 @@ class SourceXML (XMLFile, SourceFile):
     self.iVersion = int(mroot.getroot().attrib['Version'])
 
     self.ID = 'UNID' if self.iVersion <= AC_18 else 'MainGUID'
+    self.guid = mroot.getroot().attrib[self.ID]
 
     if mroot.getroot().attrib['IsPlaceable'] == 'no':
       self.bPlaceable = False
