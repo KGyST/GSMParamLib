@@ -1,8 +1,13 @@
+import dataclasses
+
 from SamUITools import singleton
 import configparser
 import os
 # FIXME using registry instead of config file, at least optionally using a class interface/DI
 import tkinter as tk
+
+KEY_FILE = "keyfile.txt"
+from typing import Optional, Type
 
 #----------------- config classes -----------------------------------------------------------------------------------------
 
@@ -38,7 +43,7 @@ class Config:
       _section = self._currentSection
     try:
       return self._currentConfig[_section][_item]
-    except:
+    except KeyError:
       try:
         return self._defaultConfig[_section][_item]
       except KeyError:
@@ -69,16 +74,43 @@ class Config:
     with open(self._sCurrentConfigPath, 'w', encoding="UTF-8") as configFile:
       conf_this.write(configFile)
 
-  def register(self, field:str, data: tk.Variable):
+  # FIXME better type hinting having the methods needed
+  def register(self, field:str, data: tk.Variable, encrypt: Optional[Type] = None):
     _curVars = self._regVars[self._currentSection]
-    _curVars[field] = data
-    _curVars[field].set(self._currentConfig[self._currentSection][field])
-    return _curVars[field]
+    _curVars[field] = DataRegistration(data=data, encrypt=encrypt)
+    if encrypt:
+      if os.path.exists(_sFile := KEY_FILE):
+        with (open (_sFile, "rb")) as _cypherFile:
+          _sKey = _cypherFile.read()
+          _encryptor = encrypt(_sKey)
+          _data = _encryptor.decrypt(self[field]).decode()
+      else:
+        _sKey = encrypt.generate_key()
+        with (open(_sFile, "wb")) as _cypherFile:
+          _cypherFile.write(_sKey)
+          _data = self[field]
+    else:
+      _data = self[field]
+    _curVars[field].data.set(_data)
+
+    return _curVars[field].data
 
   def _update_current_vars(self):
     for _curVarName, _curVarValue in self._regVars[self._currentSection].items():
-      if isinstance(_curVarValue, tk.BooleanVar):
-        self._currentConfig[self._currentSection][_curVarName] = str(_curVarValue.get())
+      if isinstance(_curVarValue.data, tk.BooleanVar):
+        self[_curVarName] = str(_curVarValue.data.get())
+      elif _curVarValue.encrypt:
+        with (open (KEY_FILE, "rb")) as _cypherFile:
+          _sKey = _cypherFile.read()
+          _encryptor = _curVarValue.encrypt(_sKey)
+          self[_curVarName] = _encryptor.encrypt(_curVarValue.data.get().encode()).decode()
       else:
-        self._currentConfig[self._currentSection][_curVarName] = _curVarValue.get()
+        self[_curVarName] = _curVarValue.data.get()
+
+
+from dataclasses import dataclass
+@dataclass
+class DataRegistration:
+  data: object
+  encrypt: Optional[Type] = None
 
