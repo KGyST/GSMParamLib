@@ -1,9 +1,12 @@
+import os.path
 import tkinter as tk
 import tkinter.filedialog
 import docutils.nodes
 from docutils.core import publish_doctree
 from PIL import Image, ImageTk
 
+LIGHT_GREEN = "#e7ffe5"
+LIGHT_RED = "#ffe5e5"
 
 # https://stackoverflow.com/questions/12305142/issue-with-singleton-python-call-two-times-init
 def singleton(cls):
@@ -193,8 +196,9 @@ class CreateToolTip:
     return text
 
 
+from typing import Callable, Optional
 class InputDirPlusText:
-  def __init__(self, top, text, target, tooltip='', row=0, column=0, func=tkinter.filedialog.askdirectory, title="Select folder"):
+  def __init__(self, top, text, target, tooltip='', row=0, column=0, func=tkinter.filedialog.askdirectory, title="Select folder", validator: Optional[Callable] = None):
     self.target = target
     self.filename = ''
     self._frame = tk.Frame(top)
@@ -207,6 +211,10 @@ class InputDirPlusText:
 
     self.entryName = tk.Entry(self._frame, {"width": 30, "textvariable": target})
     self.entryName.grid({"row": 0, "column": 1, "sticky": tk.E + tk.W, })
+
+    self._validator = self.isDir if not validator else validator
+    self.target.trace_add("write", self._validate_input)
+    self._validate_input()
 
     if tooltip:
       CreateToolTip(self._frame, tooltip)
@@ -228,6 +236,18 @@ class InputDirPlusText:
   def reset(self):
     self.entryName.config(cnf={'state': tk.NORMAL})
     self.buttonDirName.config(cnf={'state': tk.NORMAL})
+
+  def isDir(self, path: str) -> bool:
+    return os.path.isdir(path)
+
+  def _validate_input(self, *_):
+    if self._validator(self.target.get()):
+      self._setBackground(LIGHT_GREEN)
+    else:
+      self._setBackground(LIGHT_RED)
+
+  def _setBackground(self, background: str):
+    self.entryName.config({"bg": background})
 
 
 class InputDirPlusRadio:

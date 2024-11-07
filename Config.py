@@ -47,7 +47,12 @@ class Config:
       try:
         return self._defaultConfig[_section][_item]
       except KeyError:
-        self._currentConfig[_section][_item] = ''
+        print(f"_defaultConfig has no such item: {_item}")
+        if _item in self._regVars[_section]:
+          _type = type(self._regVars[_section][_item].data)
+          self._currentConfig[_section][_item] = str(_type().get())
+        else:
+          self._currentConfig[_section][_item] = ''
         return self._currentConfig[_section][_item]
 
   def __setitem__(self, key, value:str):
@@ -58,44 +63,44 @@ class Config:
     if section not in self._regVars:
       self._regVars[section] = {}
 
-  def writeConfigBack(self, default: bool = False, exclude_list: list[str]  = None):
-    self._update_current_vars()
+  def writeConfigBack(self, default: bool = False, exclude_list: set|list|tuple[str]  = () ):
     if default:
-      conf_this = self._defaultConfig
-      conf_that = self._currentConfig
+      setToBeUpdated = exclude_list
     else:
-      conf_this = self._currentConfig
-      conf_that = self._defaultConfig
+      setToBeUpdated = set(self._currentConfig[self._currentSection].keys()) - set(exclude_list)
 
-    if exclude_list:
-      for item in exclude_list:
-        conf_this[self._currentSection][item] = conf_that[self._currentSection][item]
+    for item in setToBeUpdated:
+      try:
+        _data = self._regVars[self._currentSection][item.lower()].data.get()
+        self._currentConfig[self._currentSection][item] = str(_data)
+      except KeyError:
+        print(f'Unknown item: {item}')
 
     with open(self._sCurrentConfigPath, 'w', encoding="UTF-8") as configFile:
-      conf_this.write(configFile)
+      self._currentConfig.write(configFile)
 
   # FIXME better type hinting having the methods needed
   def register(self, field:str, data: tk.Variable, encrypt: Optional[Type] = None):
     _curVars = self._regVars[self._currentSection]
-    _curVars[field] = DataRegistration(data=data, encrypt=encrypt)
+    _field = field.lower()
+    _curVars[_field] = DataRegistration(data=data, encrypt=encrypt)
     if encrypt:
       if os.path.exists(_sFile := KEY_FILE):
         with (open (_sFile, "rb")) as _cypherFile:
           _sKey = _cypherFile.read()
           _encryptor = encrypt(_sKey)
-          _data = _encryptor.decrypt(self[field]).decode()
+          _data = _encryptor.decrypt(self[_field]).decode()
       else:
         _sKey = encrypt.generate_key()
         with (open(_sFile, "wb")) as _cypherFile:
           _cypherFile.write(_sKey)
-          _data = self[field]
+          _data = self[_field]
     else:
-      _data = self[field]
-    _curVars[field].data.set(_data)
+      _data = self[_field]
+    _curVars[_field].data.set(_data)
+    return _curVars[_field].data
 
-    return _curVars[field].data
-
-  def _update_current_vars(self):
+  def update_current_vars(self):
     for _curVarName, _curVarValue in self._regVars[self._currentSection].items():
       if isinstance(_curVarValue.data, tk.BooleanVar):
         self[_curVarName] = str(_curVarValue.data.get())
@@ -114,3 +119,22 @@ class DataRegistration:
   data: object
   encrypt: Optional[Type] = None
 
+# class DRContainer:
+#   def __init__(self):
+#     self._sCurrent = 'default'
+#     self._data = {self._sCurrent: {}}
+#
+#   def __setitem__(self, key, value):
+#     if isinstance(key, (list, tuple)):
+#       assert len(key) == 1
+#
+#       self._sCurrent = key[0]
+#       if not self._sCurrent in self._data:
+#         self._data[self._sCurrent] = {}
+#       key = key[1]
+#
+#     self._data[self._sCurrent][key.lower()] = value
+#
+#   def __getitem__(self, item):
+#     if item.lower() in self.
+#     return self._sCurrent[item.lower]

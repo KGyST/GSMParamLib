@@ -212,7 +212,7 @@ class SourceXML (XMLFile, SourceFile):
   replacement_dict = {}   # source filename -> SourceXMLs
   sSourceXMLDir    = ''
 
-  def __init__(self, rel_path:str):
+  def __init__(self, rel_path: str):
     self.basePath = self.sSourceXMLDir
     super().__init__(rel_path)
     self.calledMacros   = {}
@@ -222,11 +222,7 @@ class SourceXML (XMLFile, SourceFile):
     mroot = etree.parse(self.fullPath, etree.XMLParser(strip_cdata=False))
     self.iVersion = int(mroot.getroot().attrib['Version'])
 
-    if self.iVersion <= AC_18:
-      self.ID = 'UNID'
-    else:
-      self.ID = 'MainGUID'
-    self.guid = mroot.getroot().attrib[self.ID]
+    self.ID = 'UNID' if self.iVersion <= AC_18 else 'MainGUID'
 
     if mroot.getroot().attrib['IsPlaceable'] == 'no':
       self.bPlaceable = False
