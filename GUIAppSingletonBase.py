@@ -12,9 +12,9 @@ from abc import ABC, abstractmethod
 import asyncio
 from .GSMXMLLib import *
 import time
-import tkinter as tk
 from .Config import *
 from .Async import Loop
+from .Undoable import *
 
 
 class IGUIAppBase(ABC, tk.Frame):
@@ -28,7 +28,7 @@ class GUIAppBase(IGUIAppBase):
     super().__init__()
     self.top = self.winfo_toplevel()
     # self.top.protocol("WM_DELETE_WINDOW", self._close)
-    self._currentConfig = Config(app_name, "ArchiCAD")
+    self.currentConfig = Config(app_name, "ArchiCAD")
 
   def print(self, text: str):
     print(text)
@@ -36,8 +36,8 @@ class GUIAppBase(IGUIAppBase):
 
 class GUIAsyncMPAppBase(GUIAppBase):
   def __init__(self, app_name):
-    super().__init__()
-    self.top.protocol("WM_DELETE_WINDOW", self._close)
+    super().__init__(app_name)
+    self.top.protocol("WM_DELETE_WINDOW", self.destroyApp)
     self._tick = time.perf_counter()
     self.loop = Loop(self.top)
     self.task = None
@@ -45,6 +45,30 @@ class GUIAsyncMPAppBase(GUIAppBase):
     import multiprocessing as mp
     self._iTotalLock = mp.Lock()
     self.iTotal = 0
+    self._iCurrentLock = mp.Lock()
+    self.iCurrent = 0
+
+  @property
+  def iCurrent(self):
+    with self._iCurrentLock:
+      return self._iCurrent
+
+  @iCurrent.setter
+  def iCurrent(self, value):
+    with self._iCurrentLock:
+      self._iCurrent = value
+      self.progressInfo.config(text=f"{self._iCurrent} / {self.iTotal}")
+
+  @property
+  def iTotal(self):
+    with self._iTotalLock:
+      return self._iTotal
+
+  @iTotal.setter
+  def iTotal(self, value):
+    with self._iTotalLock:
+      self._iTotal = value
+      self.progressInfo.config(text=f"Scanning XML files (from XML Source Folder): {self._iTotal}")
 
   @property
   def tick(self):
@@ -55,10 +79,35 @@ class GUIAsyncMPAppBase(GUIAppBase):
   def mainloop(self, n: int = 0):
     self.loop.run_forever()
 
-  def _destroyApp(self):
-    self._currentConfig.writeConfigBack()
+  def destroyApp(self):
+    self.currentConfig.writeConfigBack()
     self.loop.stop()
     self.top.destroy()
+
+
+class XMLProcessorBase(GUIAsyncMPAppBase):
+  def __init__(self, app_name):
+    super().__init__(app_name=app_name)
+
+    self.SourceXMLDirName   = self.currentConfig.register(tk.StringVar(self.top), "sourcexmldirname")
+    self.SourceImageDirName = self.currentConfig.register(tk.StringVar(self.top), "sourceimagedirname")
+
+  def start_source_xml_processing(self, callback: 'Callable'):
+    self.cancel_source_xml_processing()
+    self.task = self.loop.create_task(self._process())
+    self.task.add_done_callback(callback)
+
+  def cancel_source_xml_processing(self):
+    if self.task:
+      self.task.cancel()
+    self.task = None
+    self._iCurrent = 0
+    self._iTotal = 0
+
+  async def _process(self):
+    SourceXML.sSourceXMLDir = self.SourceXMLDirName.get()
+    SourceResource.sSourceResourceDir = self.SourceImageDirName.get()
+    await self.scanDirFactory(self.SourceXMLDirName.get(), current_folder='')
 
   async def scanDirFactory(self, root_folder: str, current_folder: str = '', accepted_formats: [list, tuple] =(".XML",)):
     """
@@ -97,9 +146,4 @@ class GUIAsyncMPAppBase(GUIAppBase):
           continue
     except WindowsError:
       pass
-
-  def _close(self):
-      self._currentConfig.writeConfigBack()
-      self.loop.stop()
-      self.top.destroy()
 

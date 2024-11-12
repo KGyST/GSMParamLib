@@ -282,6 +282,8 @@ class InputDirPlusRadio:
       self.idpt.entryName.config(state=tk.NORMAL)
       self.idpt.buttonDirName.config(state=tk.NORMAL)
 
+  def config(self, *args, **kwargs):
+    self.idpt.config(*args, **kwargs)
 
 class InputDirPlusBool:
   def __init__(self, top, text, target, var, tooltip=''):

@@ -5,6 +5,17 @@ from GSMParamLib.GSMParamLib import *
 import copy
 
 
+class CaseInsensitiveDict(dict):
+  def __getitem__(self, item: str):
+    return super().__getitem__(item.upper())
+
+  def __setitem__(self, key: str, value):
+    return super().__setitem__(key.upper(), value)
+
+  def __contains__(self, item:str):
+    return super().__contains__(item.upper())
+
+
 class GeneralFile(object) :
   """
   ----- Defined by GeneralFile:
@@ -96,8 +107,9 @@ class GeneralFile(object) :
 
 class SourceFile(GeneralFile):
   def __init__(self, rel_path:str):
+    assert os.path.exists(self.basePath)
     super().__init__(rel_path)
-    # assert os.path.exists(self.fullPath)
+    assert os.path.exists(self.fullPath)
 
   @GeneralFile.name.setter
   # https://stackoverflow.com/questions/76351958/superclass-property-setting-using-super-and-multiple-inheritance
@@ -109,6 +121,7 @@ class SourceFile(GeneralFile):
 
 class DestFile(GeneralFile):
   def __init__(self, source_file: SourceFile, dest_names: dict, dest_dir_name: str, dest_file_name: str = None, name_from: str = "", name_to: str = "", add_str: bool = False):
+    assert os.path.exists(dest_dir_name)
     self.sourceFile         = source_file
     _sName = self.sourceFile.name
 
@@ -182,36 +195,33 @@ class XMLFile(GeneralFile):
     super(XMLFile, self.__class__).name.__set__(self, name)
 
 
-class SourceResource(ResourceFile, SourceFile):
-  source_pict_dict = {}
+class SourceResource(SourceFile, ResourceFile):
+  source_pict_dict = CaseInsensitiveDict()
   sSourceResourceDir = ''
 
   def __init__(self, rel_path: str, base_path: str= ''):
-    self.basePath = self.sSourceResourceDir
+    self.basePath = base_path if base_path else self.sSourceResourceDir
+    assert os.path.exists(self.basePath)
     super().__init__(rel_path)
     self.name = self.fileNameWithExt
     self.isEncodedImage = False
-    SourceResource.source_pict_dict[self.name.upper()] = self
-    if not base_path:
-      self.fullPath = os.path.join(self.sSourceResourceDir, rel_path)
-    else:
-      self.fullPath = os.path.join(base_path, rel_path)
+    SourceResource.source_pict_dict[self.name] = self
 
 
 class DestResource(DestFile, ResourceFile):
-  pict_dict = {}
-  def __init__(self, source_file:SourceResource, dest_dir_name:str= '', dest_file_name:str=None, name_from:str = "", name_to:str = "", add_str:bool=False):
+  pict_dict = CaseInsensitiveDict()
+  def __init__(self, source_file:SourceResource, dest_dir_name: str = '', dest_file_name: str = None, name_from: str = "", name_to:str = "", add_str: bool = False):
     super().__init__(source_file, self.pict_dict, dest_dir_name, dest_file_name, name_from, name_to, add_str)
+    DestResource.pict_dict[self.fileNameWithExt] = self
 
   @GeneralFile.name.setter
   def name(self, name:str):
-    # self.relPath    = os.path.join(self.dirName, self.__name)
     super(DestResource, self.__class__).name.__set__(self, name)
 
 
-class SourceXML (XMLFile, SourceFile):
+class SourceXML (SourceFile, XMLFile):
   source_guids     = {}   # Source GUID     -> SourceXMLs, idx by
-  replacement_dict = {}   # source filename -> SourceXMLs
+  replacement_dict = CaseInsensitiveDict()   # source filename -> SourceXMLs
   sSourceXMLDir    = ''
 
   def __init__(self, rel_path: str):
@@ -263,15 +273,15 @@ class SourceXML (XMLFile, SourceFile):
     else:
       self.keywords = None
 
-    if self.guid.upper() not in self.source_guids:
-      self.source_guids[self.guid.upper()] = self.name
+    if self.guid not in self.source_guids:
+      self.source_guids[self.guid] = self.name
 
     pic = mroot.find("./Picture")
     if pic is not None:
       if "path" in pic.attrib:
         self.prevPict = pic.attrib["path"]
 
-    SourceXML.replacement_dict[self.name.upper()] = self
+    SourceXML.replacement_dict[self.name] = self
 
   def checkParameterUsage(self, par, macro_set)->bool:
     """
@@ -295,8 +305,8 @@ class SourceXML (XMLFile, SourceFile):
 
 class DestXML (DestFile, XMLFile):
   dest_sourcenames     = set()    # source name     -> DestXMLs, idx by original filename
-  id_dict              = {}       # Source GUID     -> dest GUID
-  dest_dict            = {}       # dest name       -> DestXML
+  id_dict              = CaseInsensitiveDict()       # Source GUID     -> dest GUID
+  dest_dict            = CaseInsensitiveDict()       # dest name       -> DestXML
   sDestXMLDir          = ''
   bOverWrite           = False
 
@@ -311,7 +321,7 @@ class DestXML (DestFile, XMLFile):
         dest_file_name (str, optional): The name of the destination file, if completely new
         add_str (bool, optional): Flag indicating whether to add a string.
     """
-    super().__init__(source_file, self.dest_dict, self.sDestXMLDir, dest_file_name, name_from, name_to, add_str)
+    super().__init__(source_file, self.dest_dict, DestXML.sDestXMLDir, dest_file_name, name_from, name_to, add_str)
 
     self.guid                   = source_file.guid if not new_guid else str(uuid.uuid4()).upper()
     self.bPlaceable             = source_file.bPlaceable
@@ -331,8 +341,9 @@ class DestXML (DestFile, XMLFile):
       else:
         self.warnings += ["XML Target file exists!"]
 
-    if self.sourceFile.guid.upper() not in self.id_dict:
-      self.id_dict[self.sourceFile.guid.upper()] = self.guid.upper()
+    if self.sourceFile.guid not in self.id_dict:
+      self.id_dict[self.sourceFile.guid] = self.guid.upper()
 
-    self.dest_sourcenames.add(self.sourceFile.name)
+    DestXML.dest_dict[self.name] = self
+    DestXML.dest_sourcenames.add(self.sourceFile.name.upper())
 

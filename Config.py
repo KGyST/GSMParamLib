@@ -1,6 +1,6 @@
-import dataclasses
 
-from SamUITools import singleton
+
+from GSMParamLib.SamUITools import singleton
 import configparser
 import os
 # FIXME using registry instead of config file, at least optionally using a class interface/DI
@@ -80,7 +80,7 @@ class Config:
       self._currentConfig.write(configFile)
 
   # FIXME better type hinting having the methods needed
-  def register(self, field:str, data: tk.Variable, encrypt: Optional[Type] = None):
+  def register(self, data: tk.Variable, field:str, encrypt: Optional[Type] = None):
     _curVars = self._regVars[self._currentSection]
     _field = field.lower()
     _curVars[_field] = DataRegistration(data=data, encrypt=encrypt)
