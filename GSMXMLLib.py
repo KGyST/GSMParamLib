@@ -5,14 +5,14 @@ from GSMParamLib.GSMParamLib import *
 import copy
 
 
-class CaseInsensitiveDict(dict):
+class CaseInsensitiveDict(dict[str, 'GeneralFile']):
   def __getitem__(self, item: str):
     return super().__getitem__(item.upper())
 
   def __setitem__(self, key: str, value):
     return super().__setitem__(key.upper(), value)
 
-  def __contains__(self, item:str):
+  def __contains__(self, item: str):
     return super().__contains__(item.upper())
 
 
@@ -120,26 +120,11 @@ class SourceFile(GeneralFile):
 
 
 class DestFile(GeneralFile):
-  def __init__(self, source_file: SourceFile, dest_names: dict, dest_dir_name: str, dest_file_name: str = None, name_from: str = "", name_to: str = "", add_str: bool = False):
+  def __init__(self, source_file: SourceFile, dest_names: CaseInsensitiveDict, dest_dir_name: str, dest_file_name: str = None, name_from: str = "", name_to: str = "", add_str: bool = False):
     assert os.path.exists(dest_dir_name)
     self.sourceFile         = source_file
-    _sName = self.sourceFile.name
 
-    if dest_file_name:
-      _sName     = dest_file_name
-    elif name_from and name_to and add_str:
-      if name_to not in self.name and add_str:
-        _sName += name_to
-      else:
-        _sName     = re.sub(name_from, name_to, source_file.name, flags=re.IGNORECASE)
-    elif name_to and add_str:
-      _sName = name_to + _sName
-
-    if _sName.upper() in dest_names:
-      i = 1
-      while _sName.upper() + "_" + str(i) in list(dest_names.keys()):
-        i += 1
-      _sName += "_" + str(i)
+    _sName = self._getValidName(source_file.name, dest_names, name_from, name_to, add_str, dest_file_name)
 
     self.relPath      = self.sourceFile.relPath
     self.basePath     = dest_dir_name
@@ -147,11 +132,34 @@ class DestFile(GeneralFile):
     super().__init__(self.relPath)
 
     self.name         = _sName
-    dest_names[self.name.upper()] = self
+    dest_names[self.name] = self
 
   @GeneralFile.name.setter
-  def name(self, name:str):
+  def name(self, name: str):
     super(DestFile, self.__class__).name.__set__(self, name)
+
+  @staticmethod
+  def _getValidName(original_name: str,
+                    dest_names: CaseInsensitiveDict,
+                    name_from: str = "",
+                    name_to: str = "",
+                    add_str: bool = False,
+                    dest_file_name: str = None) -> str:
+    if dest_file_name:
+      _sName = dest_file_name
+    elif name_from and name_to:
+      _sName = re.sub(name_from, name_to, original_name, flags=re.IGNORECASE)
+    elif name_to and add_str:
+      _sName = name_to + original_name
+    else:
+      _sName = original_name
+
+    if _sName in dest_names and dest_file_name:
+      i = 1
+      while _sName + "_" + str(i) in set(dest_names.keys()):
+        i += 1
+      _sName += "_" + str(i)
+    return _sName
 
 
 class ResourceFile(GeneralFile):
@@ -175,7 +183,7 @@ class XMLFile(GeneralFile):
     self.name        = self.fileNameWithOutExt
     self.bPlaceable  = False
     self.prevPict    = ''
-    self.gdlPicts    = []
+    self.gdlPicts    = set()
 
   def __lt__(self, other:'XMLFile')->bool:
     if self.bPlaceable and not other.bPlaceable:
@@ -218,6 +226,10 @@ class DestResource(DestFile, ResourceFile):
   def name(self, name:str):
     super(DestResource, self.__class__).name.__set__(self, name)
 
+  @staticmethod
+  def getValidName(source_file_name: str, name_from: str = "", name_to: str = "", add_str: bool = False, dest_file_name = "") -> str:
+    return DestFile._getValidName(source_file_name, DestResource.pict_dict, name_from, name_to, add_str, dest_file_name)
+
 
 class SourceXML (SourceFile, XMLFile):
   source_guids     = {}   # Source GUID     -> SourceXMLs, idx by
@@ -255,7 +267,7 @@ class SourceXML (SourceFile, XMLFile):
     for gdlPict in mroot.findall("./GDLPict"):
       if 'path' in gdlPict.attrib:
         _path = os.path.basename(gdlPict.attrib['path'])
-        self.gdlPicts += [_path.upper()]
+        self.gdlPicts.add(_path.upper())
 
     # Parameter manipulation: checking usage and later add custom pars
     self.parameters = ParamSection(mroot.find("./ParamSection"))
@@ -311,16 +323,6 @@ class DestXML (DestFile, XMLFile):
   bOverWrite           = False
 
   def __init__(self, source_file:SourceXML, dest_file_name: str = None, name_from:str = "", name_to: str = "", add_str: bool = False, new_guid:bool = True):
-    """
-    Initializes an instance of the class.
-
-    Args:
-        source_file (SourceXML): The SourceXML object representing the source file.
-        name_from (str, optional):
-        name_to (str, optional):
-        dest_file_name (str, optional): The name of the destination file, if completely new
-        add_str (bool, optional): Flag indicating whether to add a string.
-    """
     super().__init__(source_file, self.dest_dict, DestXML.sDestXMLDir, dest_file_name, name_from, name_to, add_str)
 
     self.guid                   = source_file.guid if not new_guid else str(uuid.uuid4()).upper()
@@ -344,6 +346,10 @@ class DestXML (DestFile, XMLFile):
     if self.sourceFile.guid not in self.id_dict:
       self.id_dict[self.sourceFile.guid] = self.guid.upper()
 
-    DestXML.dest_dict[self.name] = self
+    # DestXML.dest_dict[self.name] = self
     DestXML.dest_sourcenames.add(self.sourceFile.name.upper())
+
+  @staticmethod
+  def getValidName(source_file_name: str, name_from: str = "", name_to: str = "", add_str: bool = False, dest_file_name = "") -> str:
+    return DestFile._getValidName(source_file_name, DestXML.dest_dict, name_from, name_to, add_str, dest_file_name)
 

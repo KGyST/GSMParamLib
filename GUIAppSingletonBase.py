@@ -107,7 +107,8 @@ class XMLProcessorBase(GUIAsyncMPAppBase):
   async def _process(self):
     SourceXML.sSourceXMLDir = self.SourceXMLDirName.get()
     SourceResource.sSourceResourceDir = self.SourceImageDirName.get()
-    await self.scanDirFactory(self.SourceXMLDirName.get(), current_folder='')
+    await self.scanDirFactory(self.SourceXMLDirName.get())
+    await self.scanDirFactory(self.SourceImageDirName.get())
 
   async def scanDirFactory(self, root_folder: str, current_folder: str = '', accepted_formats: [list, tuple] =(".XML",)):
     """
