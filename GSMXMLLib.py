@@ -7,13 +7,19 @@ import copy
 
 class CaseInsensitiveDict(dict[str, 'GeneralFile']):
   def __getitem__(self, item: str):
-    return super().__getitem__(item.upper())
+    return super().__getitem__(self.__rename(item))
 
   def __setitem__(self, key: str, value):
-    return super().__setitem__(key.upper(), value)
+    return super().__setitem__(self.__rename(key), value)
 
   def __contains__(self, item: str):
-    return super().__contains__(item.upper())
+    return super().__contains__(self.__rename(item))
+
+  @staticmethod
+  def __rename(item: str):
+    if '/' in item:
+      item = os.path.join(*item.split("/"))
+    return item.upper()
 
 
 class GeneralFile(object) :
@@ -168,11 +174,11 @@ class ResourceFile(GeneralFile):
     self.name = self.fileNameWithExt
 
   @GeneralFile.name.setter
-  def name(self, p_name:str):
-    self.fileNameWithExt    = p_name
+  def name(self, name: str):
+    self.fileNameWithExt    = name
     self.fileNameWithOutExt = os.path.splitext(self.fileNameWithExt)[0]
     self.ext                = os.path.splitext(self.fileNameWithExt)[1]
-    super(ResourceFile, self.__class__).name.__set__(self, p_name)
+    super(ResourceFile, self.__class__).name.__set__(self, name)
 
 
 class XMLFile(GeneralFile):
@@ -207,12 +213,15 @@ class SourceResource(SourceFile, ResourceFile):
   source_pict_dict = CaseInsensitiveDict()
   sSourceResourceDir = ''
 
-  def __init__(self, rel_path: str, base_path: str= ''):
+  def __init__(self, rel_path: str, base_path: str= '', encoded: bool = False):
     self.basePath = base_path if base_path else self.sSourceResourceDir
     assert os.path.exists(self.basePath)
     super().__init__(rel_path)
-    self.name = self.fileNameWithExt
-    self.isEncodedImage = False
+    self.isEncodedImage = encoded
+    if not self.isEncodedImage:
+      self.name = self.fileNameWithExt
+    else:
+      self.name = self.relPath
     SourceResource.source_pict_dict[self.name] = self
 
 
