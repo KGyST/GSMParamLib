@@ -108,7 +108,6 @@ class XMLProcessorBase(GUIAsyncMPAppBase):
     SourceXML.sSourceXMLDir = self.SourceXMLDirName.get()
     SourceResource.sSourceResourceDir = self.SourceImageDirName.get()
     await self.scanDirFactory(self.SourceXMLDirName.get())
-    await self.scanDirFactory(self.SourceImageDirName.get())
 
   async def scanDirFactory(self, root_folder: str, current_folder: str = '', accepted_formats: list [str] | tuple [str] =(".XML",)):
     """
@@ -128,13 +127,12 @@ class XMLProcessorBase(GUIAsyncMPAppBase):
           if not os.path.isdir(os.path.join(root_folder, sRelPath)):
             # if it IS NOT a folder
             self.iTotal += 1
+            self.iCurrent += 1
             if os.path.splitext(os.path.basename(f))[1].upper() in accepted_formats:
               SourceXML(sRelPath)
             else:
               if os.path.splitext(os.path.basename(f))[0].upper() not in SourceResource.source_pict_dict:
-                SourceResource(sRelPath, base_path=root_folder, encoded=root_folder == self.SourceImageDirName.get())
-                # if SourceResource.sSourceResourceDir in sR.fullPath and SourceResource.sSourceResourceDir:
-                #   sR.isEncodedImage = True
+                SourceResource(sRelPath, base_path=root_folder)
             await asyncio.sleep(0)
           else:
             # if it IS a folder

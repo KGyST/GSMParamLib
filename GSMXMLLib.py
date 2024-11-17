@@ -122,7 +122,7 @@ class SourceFile(GeneralFile):
   def name(self, name:str):
     assert len(name)
     super(SourceFile, self.__class__).name.__set__(self, name)
-    # assert os.path.exists(self.fullPath)
+    assert os.path.exists(self.fullPath)
 
 
 class DestFile(GeneralFile):
@@ -213,21 +213,17 @@ class SourceResource(SourceFile, ResourceFile):
   source_pict_dict = CaseInsensitiveDict()
   sSourceResourceDir = ''
 
-  def __init__(self, rel_path: str, base_path: str= '', encoded: bool = False):
+  def __init__(self, rel_path: str, base_path: str= ''):
     self.basePath = base_path if base_path else self.sSourceResourceDir
     assert os.path.exists(self.basePath)
     super().__init__(rel_path)
-    self.isEncodedImage = encoded
-    if not self.isEncodedImage:
-      self.name = self.fileNameWithExt
-    else:
-      self.name = self.relPath
+    self.name = self.fileNameWithExt
     SourceResource.source_pict_dict[self.name] = self
 
 
 class DestResource(DestFile, ResourceFile):
   pict_dict = CaseInsensitiveDict()
-  def __init__(self, source_file:SourceResource, dest_dir_name: str = '', dest_file_name: str = None, name_from: str = "", name_to:str = "", add_str: bool = False):
+  def __init__(self, source_file:SourceResource, dest_dir_name: str = '', name_from: str = "", name_to:str = "", add_str: bool = False, dest_file_name: str = None):
     super().__init__(source_file, self.pict_dict, dest_dir_name, dest_file_name, name_from, name_to, add_str)
     DestResource.pict_dict[self.fileNameWithExt] = self
 
@@ -275,8 +271,9 @@ class SourceXML (SourceFile, XMLFile):
 
     for gdlPict in mroot.findall("./GDLPict"):
       if 'path' in gdlPict.attrib:
-        _path = os.path.basename(gdlPict.attrib['path'])
-        self.gdlPicts.add(_path.upper())
+        # _path = os.path.basename(gdlPict.attrib['path'])
+        # self.gdlPicts.add(_path.upper())
+        self.gdlPicts.add(gdlPict.attrib['path'])
 
     # Parameter manipulation: checking usage and later add custom pars
     self.parameters = ParamSection(mroot.find("./ParamSection"))
@@ -331,7 +328,7 @@ class DestXML (DestFile, XMLFile):
   sDestXMLDir          = ''
   bOverWrite           = False
 
-  def __init__(self, source_file:SourceXML, dest_file_name: str = None, name_from:str = "", name_to: str = "", add_str: bool = False, new_guid:bool = True):
+  def __init__(self, source_file:SourceXML, name_from:str = "", name_to: str = "", add_str: bool = False, dest_file_name: str = None, new_guid:bool = True):
     super().__init__(source_file, self.dest_dict, DestXML.sDestXMLDir, dest_file_name, name_from, name_to, add_str)
 
     self.guid                   = source_file.guid if not new_guid else str(uuid.uuid4()).upper()
@@ -355,7 +352,7 @@ class DestXML (DestFile, XMLFile):
     if self.sourceFile.guid not in self.id_dict:
       self.id_dict[self.sourceFile.guid] = self.guid.upper()
 
-    # DestXML.dest_dict[self.name] = self
+    DestXML.dest_dict[self.name] = self
     DestXML.dest_sourcenames.add(self.sourceFile.name.upper())
 
   @staticmethod
