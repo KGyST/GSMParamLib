@@ -4,9 +4,12 @@ import tkinter.filedialog
 import docutils.nodes
 from docutils.core import publish_doctree
 from PIL import Image, ImageTk
+from typing import Callable, Optional
 
-LIGHT_GREEN = "#e7ffe5"
+WHITE = "#ffffff"
 LIGHT_RED = "#ffe5e5"
+DEFAULT_HEIGHT = 10
+DEFAULT_FONT = "Segoe UI"
 
 # https://stackoverflow.com/questions/12305142/issue-with-singleton-python-call-two-times-init
 def singleton(cls):
@@ -74,20 +77,21 @@ class CreateToolTip:
     width = len(max(self.text.splitlines(), key=len))
     height = len(self.text.splitlines())
 
-    text = tk.Text(self.tw, height=height, width=width, wrap=tk.WORD,
-                   bg="#ffffff", relief=tk.FLAT, borderwidth=10)
+    text = tk.Text(self.tw, wrap=tk.WORD, bg="#f9f9f9", relief=tk.SOLID,
+                   borderwidth=1, padx=5, pady=5, height=height, width=width)
     text.pack(ipadx=1)
+    text.configure(font=(DEFAULT_FONT, DEFAULT_HEIGHT))
 
     self.parse_and_display(text)
 
   def parse_and_display(self, text):
-    text.tag_configure("normal", font=("Arial", 12))
-    text.tag_configure("bold", font=("Arial", 12, "bold"))
-    text.tag_configure("italic", font=("Arial", 12, "italic"))
-    text.tag_configure("link", font=("Arial", 12), foreground="blue", underline=True)
-    text.tag_configure("document heading", font=("Arial", 16, "bold"))
-    text.tag_configure("subtitle", font=("Arial", 14, "bold"))
-    text.tag_configure("subheading", font=("Arial", 12, "bold"))
+    text.tag_configure("normal", font=(DEFAULT_FONT, DEFAULT_HEIGHT))
+    text.tag_configure("bold", font=(DEFAULT_FONT, DEFAULT_HEIGHT, "bold"))
+    text.tag_configure("italic", font=(DEFAULT_FONT, DEFAULT_HEIGHT, "italic"))
+    text.tag_configure("link", font=(DEFAULT_FONT, DEFAULT_HEIGHT), foreground="blue", underline=True)
+    text.tag_configure("document heading", font=(DEFAULT_FONT, DEFAULT_HEIGHT + 4, "bold"))
+    text.tag_configure("subtitle", font=(DEFAULT_FONT, DEFAULT_HEIGHT + 2, "bold"))
+    text.tag_configure("subheading", font=(DEFAULT_FONT, DEFAULT_HEIGHT, "bold"))
 
     document = publish_doctree(self.text)
 
@@ -196,9 +200,17 @@ class CreateToolTip:
     return text
 
 
-from typing import Callable, Optional
 class InputDirPlusText:
-  def __init__(self, top, text, target, tooltip='', row=0, column=0, func=tkinter.filedialog.askdirectory, title="Select folder", validator: Optional[Callable] = None):
+  def __init__(self,
+               top,
+               text,
+               target,
+               tooltip='',
+               row=0,
+               column=0,
+               func=tkinter.filedialog.askdirectory,
+               title="Select folder",
+               validator: Optional[Callable] = None):
     self.target = target
     self.filename = ''
     self._frame = tk.Frame(top)
@@ -214,10 +226,10 @@ class InputDirPlusText:
 
     self._validator = self.isDir if not validator else validator
     self.target.trace_add("write", self._validate_input)
-    self._validate_input()
+    self.tooltip = "\n".join(filter(None, (self._validate_input(), tooltip)))
 
-    if tooltip:
-      CreateToolTip(self._frame, tooltip)
+    if self.tooltip:
+      CreateToolTip(self._frame, self.tooltip)
 
   def getFunc(self, func, title):
     def inputDirName():
@@ -237,14 +249,16 @@ class InputDirPlusText:
     self.entryName.config(cnf={'state': tk.NORMAL})
     self.buttonDirName.config(cnf={'state': tk.NORMAL})
 
-  def isDir(self, path: str) -> bool:
-    return os.path.isdir(path)
+  @staticmethod
+  def isDir(path: str) -> str:
+    return "" if os.path.isdir(path) else f"Folder name \n{path}\nis not a valid path"
 
-  def _validate_input(self, *_):
-    if self._validator(self.target.get()):
-      self._setBackground(LIGHT_GREEN)
+  def _validate_input(self, *_) -> str:
+    if (_validate := self._validator(self.target.get())) == "":
+      self._setBackground(WHITE)
     else:
       self._setBackground(LIGHT_RED)
+    return _validate
 
   def _setBackground(self, background: str):
     self.entryName.config({"bg": background})
@@ -268,11 +282,13 @@ class InputDirPlusRadio:
     if varValue:
       self.idpt.entryName.config(state=tk.DISABLED)
       self.idpt.buttonDirName.config(state=tk.DISABLED)
+      self.idpt.tooltip = ""
 
     self.bCBobserver = self._var.trace_variable("w", self.radioModified)
 
-    if tooltip:
-      CreateToolTip(self.frame, tooltip)
+    _tooltip = '\n'.join(filter(None, (self.idpt.tooltip, tooltip)))
+    if _tooltip:
+      CreateToolTip(self.frame, _tooltip)
 
   def radioModified(self, *_):
     if not self._var.get() == self._varValue:
@@ -285,8 +301,9 @@ class InputDirPlusRadio:
   def config(self, *args, **kwargs):
     self.idpt.config(*args, **kwargs)
 
-class InputDirPlusBool:
-  def __init__(self, top, text, target, var, tooltip=''):
+
+class InputDirPlusCheckbox:
+  def __init__(self, top, text, target, var, tooltip='', **kwargs):
     top.columnconfigure(1, weight=1)
 
     self.frame = tk.Frame(top)
@@ -297,12 +314,13 @@ class InputDirPlusBool:
     self.checkbox = tk.Checkbutton(self.frame, {"variable": self._var})
     self.checkbox.grid({"sticky": tk.W, "row": 0, "column": 0})
 
-    self.idpt = InputDirPlusText(self.frame, text, target, row=0, column=1)
+    self.idpt = InputDirPlusText(self.frame, text, target, row=0, column=1, **kwargs)
 
     self.bCBobserver = self._var.trace_variable("w", self.checkBoxPressed)
 
-    if tooltip:
-      CreateToolTip(self.frame, tooltip)
+    _tooltip = '\n'.join(filter(None, (self.idpt.tooltip, tooltip)))
+    if _tooltip:
+      CreateToolTip(self.frame, _tooltip)
 
   def checkBoxPressed(self, *_):
     if not self._var.get():
