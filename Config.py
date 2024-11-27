@@ -14,10 +14,16 @@ from typing import Optional, Type
 @singleton
 class Config:
   """
-  app_name: str = "application" - application's own name
-  default_section: str = None - usually 'ArchCAD' by default
+  Stores configuration in a .ini file
+  - Optimized for Tkinter variables
+  - Differential: needs a default .ini, and stores only those that are differ form default values
+  - Unfinished
   """
   def __init__(self, app_name: str = "application", default_section: str = "DEFAULT"):
+    """
+    app_name: str = "application" - application's own name
+    default_section: str = None - usually 'ArchiCAD' by default
+    """
     self._regVars = {}
     self._appName = app_name
     self._currentConfig = configparser.ConfigParser()
@@ -55,34 +61,53 @@ class Config:
           self._currentConfig[_section][_item] = ''
         return self._currentConfig[_section][_item]
 
-  def __setitem__(self, key, value:str):
+  def __setitem__(self, key, value: str):
     self._currentConfig[self._currentSection][key] = value
 
-  def setCurrentSection(self, section:str):
+  def setCurrentSection(self, section: str):
     self._currentSection = section
     if section not in self._regVars:
       self._regVars[section] = {}
 
-  def writeConfigBack(self, default: bool = False, exclude_list: set|list|tuple[str]  = () ):
-    if default:
-      setToBeUpdated = exclude_list
-    else:
-      setToBeUpdated = set(self._currentConfig[self._currentSection].keys()) - set(exclude_list)
+  def writeConfigBack(self, exclude_list: set|list|tuple[str]  = () ):
+    """
+    Writes back registered fields to the config file.
+    :param exclude_list: Params not to be written to the config
+    :return:
+    """
+    # TODO currenly updates only the current section
+    self._update_current_vars()
 
+    setToBeUpdated = {key for key in self._currentConfig[self._currentSection].keys()
+                      if self._currentConfig[self._currentSection][key]
+                      != self._defaultConfig[self._currentSection][key]}
+    setToBeUpdated -= set(exclude_list)
+
+    _config = configparser.ConfigParser()
+    _config.add_section(self._currentSection)
     for item in setToBeUpdated:
       try:
         _data = self._regVars[self._currentSection][item.lower()].data.get()
-        self._currentConfig[self._currentSection][item] = str(_data)
+        _config[self._currentSection][item] = str(_data)
       except KeyError:
         print(f'Unknown item: {item}')
 
     with open(self._sCurrentConfigPath, 'w', encoding="UTF-8") as configFile:
-      self._currentConfig.write(configFile)
+      _config.write(configFile)
 
   # FIXME better type hinting having the methods needed
-  def register(self, data: tk.Variable, field:str, encrypt: Optional[Type] = None):
-    _curVars = self._regVars[self._currentSection]
+  def register(self, data: tk.Variable, field: str, encrypt: Optional[Type] = None):
+    """
+    Connect tk variables with config values
+    :param data:  tk variable
+    :param field: name of the config setting
+    :param encrypt: class of the encryptor class, like Fernet. Must have an encrypt/decrypt mehtod
+    :return:
+    """
     _field = field.lower()
+    assert _field in self._defaultConfig[self._currentSection], f'No "{_field}" in default config'
+
+    _curVars = self._regVars[self._currentSection]
     _curVars[_field] = DataRegistration(data=data, encrypt=encrypt)
     if encrypt:
       if os.path.exists(_sFile := KEY_FILE):
@@ -100,7 +125,7 @@ class Config:
     _curVars[_field].data.set(_data)
     return _curVars[_field].data
 
-  def update_current_vars(self):
+  def _update_current_vars(self):
     for _curVarName, _curVarValue in self._regVars[self._currentSection].items():
       if isinstance(_curVarValue.data, tk.BooleanVar):
         self[_curVarName] = str(_curVarValue.data.get())

@@ -22,6 +22,9 @@ def singleton(cls):
 
 
 class CreateToolTip:
+  """
+
+  """
   activeToolTip = None
   def __init__(self, widget, text='widget info', delay=500):
     self.waittime = delay  # Delay in milliseconds (default: 500ms)
@@ -153,9 +156,18 @@ class CreateToolTip:
 
   def open_url(self, event, node):
     if "refuri" in node.attributes:
-      url = node.attributes["refuri"]
-      # Open the URL in a web browser or handle it as desired
-      print("Opening URL:", url)
+      if "/" in (_url := node.attributes["refuri"]):
+        url = os.path.join(*_url.split("/"))
+
+      import sys, subprocess
+      try:
+        # FIXME doesn't work:
+        if sys.platform.startswith("win"):
+          subprocess.run(["start", url], shell=True)
+        else:
+          subprocess.run(["xdg-open", url])
+      except Exception as e:
+        print(f"Error opening {url}: {e}")
 
   def check_cursor_above_tooltip(self):
     cursor_x, cursor_y = self.tw.winfo_pointerxy()
