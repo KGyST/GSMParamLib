@@ -77,20 +77,22 @@ class Config:
     """
     # TODO currenly updates only the current section
     self._update_current_vars()
-
-    setToBeUpdated = {key for key in self._currentConfig[self._currentSection].keys()
-                      if self._currentConfig[self._currentSection][key]
-                      != self._defaultConfig[self._currentSection][key]}
-    setToBeUpdated -= set(exclude_list)
-
     _config = configparser.ConfigParser()
-    _config.add_section(self._currentSection)
-    for item in setToBeUpdated:
-      try:
-        _data = self._regVars[self._currentSection][item.lower()].data.get()
-        _config[self._currentSection][item] = str(_data)
-      except KeyError:
-        print(f'Unknown item: {item}')
+
+    for _section in self._currentConfig:
+      if _section not in _config:
+        _config.add_section(_section)
+      setToBeUpdated = {key for key in self._currentConfig[_section].keys()
+                        if self._currentConfig[_section][key]
+                        != self._defaultConfig[_section][key]}
+      setToBeUpdated -= set(exclude_list)
+
+      for item in setToBeUpdated:
+        try:
+          _data = self._regVars[_section][item.lower()].data.get()
+          _config[_section][item] = str(_data)
+        except KeyError:
+          print(f'Unknown item: {item}')
 
     with open(self._sCurrentConfigPath, 'w', encoding="UTF-8") as configFile:
       _config.write(configFile)
@@ -144,22 +146,3 @@ class DataRegistration:
   data: object
   encrypt: Optional[Type] = None
 
-# class DRContainer:
-#   def __init__(self):
-#     self._sCurrent = 'default'
-#     self._data = {self._sCurrent: {}}
-#
-#   def __setitem__(self, key, value):
-#     if isinstance(key, (list, tuple)):
-#       assert len(key) == 1
-#
-#       self._sCurrent = key[0]
-#       if not self._sCurrent in self._data:
-#         self._data[self._sCurrent] = {}
-#       key = key[1]
-#
-#     self._data[self._sCurrent][key.lower()] = value
-#
-#   def __getitem__(self, item):
-#     if item.lower() in self.
-#     return self._sCurrent[item.lower]
