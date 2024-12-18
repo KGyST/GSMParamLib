@@ -252,8 +252,15 @@ class ParamSection:
       eTree.append(_wdo)
     return eTree
 
-  def createParamfromCSV(self, inParName, inCol, inArrayValues = None):
-    splitPars = inParName.split(" ")
+  def createParamFromSheet(self, par_name: str, col, array_values = None):
+    """
+    :param par_name:
+    # FIXME why col:
+    :param col:
+    :param array_values:
+    :return:
+    """
+    splitPars = par_name.split(" ")
     parName = splitPars[0]
     ap = ArgParse(add_help=False)
     ap.add_argument("-d", "--desc" , "--description", nargs="+")        # action=ConcatStringAction,
@@ -319,9 +326,9 @@ class ParamSection:
         elif parsedArgs.type in ("Comment", ):
           parType = PAR_COMMENT
           parName = " " + parName + ": PARAMETER BLOCK ===== PARAMETER BLOCK ===== PARAMETER BLOCK ===== PARAMETER BLOCK "
-        param = self.createParam(parName, inCol, inArrayValues, parType)
+        param = self.createParam(parName, col, array_values, parType)
       else:
-        param = self.createParam(parName, inCol, inArrayValues)
+        param = self.createParam(parName, col, array_values)
 
       if desc:
         param.desc = desc
@@ -370,20 +377,20 @@ class ParamSection:
       # Parameter already there
       if parsedArgs.remove:
         # FIXME writing tests for this
-        if inCol:
+        if col:
           del self[parName]
       elif parsedArgs.firstDimension:
         # FIXME tricky, indexing according to gdl (from 1) but for lists according to Python (from 0) !!!
         parsedArgs.firstDimension = int(parsedArgs.firstDimension)
         if parsedArgs.secondDimension:
           parsedArgs.secondDimension = int(parsedArgs.secondDimension)
-          self[parName][parsedArgs.firstDimension][parsedArgs.secondDimension] = inCol
-        elif isinstance(inCol, list):
-          self[parName][parsedArgs.firstDimension] = inCol
+          self[parName][parsedArgs.firstDimension][parsedArgs.secondDimension] = col
+        elif isinstance(col, list):
+          self[parName][parsedArgs.firstDimension] = col
         else:
-          self[parName][parsedArgs.firstDimension][1] = inCol
+          self[parName][parsedArgs.firstDimension][1] = col
       else:
-        self[parName] = inCol
+        self[parName] = col
         if desc:
           self.__paramDict[parName].desc = " ".join(parsedArgs.desc)
 

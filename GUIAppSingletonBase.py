@@ -111,7 +111,7 @@ class XMLProcessorBase(GUIAsyncMPAppBase):
 
   async def scanDirFactory(self, root_folder: str, current_folder: str = '', accepted_formats: list [str] | tuple [str] =(".XML",)):
     """
-    only scanning input dir recursively to set up xml and image files' list
+    Only scanning input dir recursively to set up xml and image files' list
     :param root_folder:
     :param current_folder:
     :param accepted_formats:

@@ -39,7 +39,7 @@ class NoGoogleCredentialsException(Exception):
 class GoogleSpreadsheetConnector(object):
   GOOGLE_SPREADSHEET_SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
-  def __init__(self, inCurrentConfig:'Config', inSpreadsheetID):
+  def __init__(self, current_config: 'Config', inSpreadsheetID):
     #FIXME renaming/filling out these
     client_config = {"installed": {
       "client_id": "224241213692-7gafn34d4heprhps1rod3clt1b8j07j6.apps.googleusercontent.com",
@@ -53,21 +53,23 @@ class GoogleSpreadsheetConnector(object):
         "http://localhost"}
     }}
 
+    current_config.setCurrentSection("Google")
+
     try:
-      if  "access_token" in inCurrentConfig \
-      and "refresh_token" in inCurrentConfig \
-      and "token_type" in inCurrentConfig \
-      and "id_token" in inCurrentConfig \
-      and "token_uri" in inCurrentConfig \
-      and "client_id" in inCurrentConfig \
-      and "client_secret" in inCurrentConfig:
+      if  "access_token" in current_config \
+      and "refresh_token" in current_config \
+      and "token_type" in current_config \
+      and "id_token" in current_config \
+      and "token_uri" in current_config \
+      and "client_id" in current_config \
+      and "client_secret" in current_config:
         self.googleCreds = Credentials(
-          token=          inCurrentConfig["access_token"],
-          refresh_token=  inCurrentConfig["refresh_token"],
-          id_token=       inCurrentConfig["id_token"],
-          token_uri=      inCurrentConfig["token_uri"],
-          client_id=      inCurrentConfig["client_id"],
-          client_secret=  inCurrentConfig["client_secret"],
+          token=          current_config["access_token"],
+          refresh_token=  current_config["refresh_token"],
+          id_token=       current_config["id_token"],
+          token_uri=      current_config["token_uri"],
+          client_id=      current_config["client_id"],
+          client_secret=  current_config["client_secret"],
           scopes=         GoogleSpreadsheetConnector.GOOGLE_SPREADSHEET_SCOPES
         )
 
@@ -88,10 +90,10 @@ class GoogleSpreadsheetConnector(object):
 
       sheet = service.spreadsheets()
 
-      sheetName = sheet.get(spreadsheetId=inSpreadsheetID,
-                            includeGridData=True).execute()['sheets'][0]['properties']['title']
+      _execute = sheet.get(spreadsheetId=inSpreadsheetID, includeGridData=True).execute()
+      sheetName = _execute['sheets'][0]['properties']['title']
 
-      result = list(sheet.values()).get(spreadsheetId=inSpreadsheetID,
+      result = sheet.values().get(spreadsheetId=inSpreadsheetID,
                                         range=sheetName).execute()
 
       self.values = result.get('values', [])

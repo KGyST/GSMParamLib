@@ -212,14 +212,36 @@ class CreateToolTip:
     return text
 
 
+class Entry(tk.Entry):
+  # FIXME finish
+  def __init__(self, target: tk.Variable, validator: 'Callable' = None, tooltip: str = "", *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.target = target
+    if validator:
+      self._validator = validator
+      self.target.trace_add("write", self._validate_input)
+    if tooltip:
+      CreateToolTip(self, tooltip)
+
+  def _validate_input(self, *_) -> str:
+    if (_validate := self._validator(self.target.get())) == "":
+      self._setBackground(WHITE)
+    else:
+      self._setBackground(LIGHT_RED)
+    return _validate
+
+  def _setBackground(self, background: str):
+    self.config({"bg": background})
+
+
 class InputDirPlusText:
   def __init__(self,
                top,
                text,
-               target,
-               tooltip='',
-               row=0,
-               column=0,
+               target: tk.StringVar,
+               tooltip: str = '',
+               row: int = 0,
+               column: int = 0,
                func=tkinter.filedialog.askdirectory,
                title="Select folder",
                validator: Optional[Callable] = None):
