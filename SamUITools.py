@@ -4,7 +4,9 @@ import tkinter.filedialog
 import docutils.nodes
 from docutils.core import publish_doctree
 from PIL import Image, ImageTk
-from typing import Callable, Optional
+from typing import Callable, Optional, Self
+from Validators import isDir
+from dataclasses import dataclass
 
 WHITE = "#ffffff"
 LIGHT_RED = "#ffe5e5"
@@ -21,16 +23,67 @@ def singleton(cls):
   return getinstance
 
 
-class CreateToolTip:
+@dataclass
+class ToolTipText():
   """
+  Helper class for tooltip formatting (methods)
+  """
+  _text: str
 
-  """
+  def unindent(self) -> Self:
+    """
+    Unindents the given text if every line starts with the same indentation.
+    Chainable
+    """
+    lines = self._text.split("\n")
+    indentation = None
+
+    for line in lines:
+      if not line.strip():
+        continue
+
+      line_indentation = len(line) - len(line.lstrip())
+
+      if indentation is None:
+        indentation = line_indentation
+      elif line_indentation < indentation:
+        indentation = line_indentation
+
+    if indentation is not None and indentation > 0:
+      unindented_lines = [line[indentation:] for line in lines]
+      return "\n".join(unindented_lines)
+    return self
+
+  def replace_paths_with_refuri(self) -> Self:
+    """
+    Regex replacer for filesystem paths like "C:\some thing' to "c:/some%20thing" that is docutils compatible
+    Chainable
+    """
+    import re
+    import urllib.request
+    pattern = r"`([^<]+)<([^>]+)>`_"
+
+    def repl(match):
+      label = match.group(1).strip()
+      path = match.group(2).strip()
+      refuri = urllib.request.pathname2url(path)
+      return f"`{label} <{refuri}>`_"
+    self._text = re.sub(pattern, repl, self._text)
+    return self
+
+  def tostring(self):
+    return self._text
+
+
+class CreateToolTip:
   activeToolTip = None
   def __init__(self, widget, text='widget info', delay=500):
     self.waittime = delay  # Delay in milliseconds (default: 500ms)
     self.widget = widget
-    self.text = self._unindent(text)
-
+    self.text = (ToolTipText(text)
+                 .replace_paths_with_refuri()
+                 .unindent()
+                 .tostring())
     self.widget.bind("<Enter>", self.enter)
     self.widget.bind("<Leave>", self.leave)
     self.widget.bind("<ButtonPress>", self.leave)
@@ -124,8 +177,11 @@ class CreateToolTip:
       elif isinstance(child, docutils.nodes.emphasis):
         text.insert("end", child.astext(), "italic")
       elif isinstance(child, docutils.nodes.reference):
-        text.insert("end", child.astext(), "link")
+        from urllib.request import url2pathname
+        text.insert("end", url2pathname(child["refuri"]), "link")
         text.tag_bind("link", "<Button-1>", lambda event, node=child: self.open_url(event, node))
+        text.tag_bind("link", "<Enter>", lambda e: text.config(cursor="hand2"))
+        text.tag_bind("link", "<Leave>", lambda e: text.config(cursor="xterm"))
       elif isinstance(child, docutils.nodes.image):
         image_path = child["uri"]
         try:
@@ -154,22 +210,24 @@ class CreateToolTip:
         tw.destroy()
       CreateToolTip.activeToolTip = None
 
-  def open_url(self, event, node):
+  @staticmethod
+  def open_url(event, node):
     if "refuri" in node.attributes:
       if "/" in (_url := node.attributes["refuri"]):
-        url = os.path.join(*_url.split("/"))
+        import pathlib
+        import urllib.request
+        url = pathlib.Path(urllib.request.url2pathname(_url)).resolve()
 
-      import sys, subprocess
-      try:
-        # FIXME doesn't work:
-        if sys.platform.startswith("win"):
-          subprocess.run(["start", url], shell=True)
-        else:
-          subprocess.run(["xdg-open", url])
-      except Exception as e:
-        print(f"Error opening {url}: {e}")
+        import sys, subprocess
+        try:
+          if sys.platform.startswith("win"):
+            os.startfile(url)
+          else:
+            subprocess.run(["xdg-open", url])
+        except Exception as e:
+          print(f"Error opening {url}: {e}")
 
-  def check_cursor_above_tooltip(self):
+  def check_cursor_above_tooltip(self) -> bool:
     cursor_x, cursor_y = self.tw.winfo_pointerxy()
     window_x = self.tw.winfo_rootx()
     window_y = self.tw.winfo_rooty()
@@ -179,37 +237,6 @@ class CreateToolTip:
       return True
     else:
       return False
-
-  @staticmethod
-  def _unindent(text: str) -> str:
-    """
-    Unindents the given text if every line starts with the same indentation.
-
-    Args:
-        text (str): The text to unindent.
-
-    Returns:
-        str: The unindented text.
-    """
-    lines = text.split("\n")
-    indentation = None
-
-    for line in lines:
-      if not line.strip():
-        continue
-
-      line_indentation = len(line) - len(line.lstrip())
-
-      if indentation is None:
-        indentation = line_indentation
-      elif line_indentation < indentation:
-        indentation = line_indentation
-
-    if indentation is not None and indentation > 0:
-      unindented_lines = [line[indentation:] for line in lines]
-      return "\n".join(unindented_lines)
-
-    return text
 
 
 class Entry(tk.Entry):
@@ -235,6 +262,7 @@ class Entry(tk.Entry):
 
 
 class InputDirPlusText:
+  # FIXME polling of the dir, like once per second
   def __init__(self,
                top,
                text,
@@ -258,7 +286,7 @@ class InputDirPlusText:
     self.entryName = tk.Entry(self._frame, {"width": 30, "textvariable": target})
     self.entryName.grid({"row": 0, "column": 1, "sticky": tk.E + tk.W, })
 
-    self._validator = self.isDir if not validator else validator
+    self._validator = isDir if not validator else validator
     self.target.trace_add("write", self._validate_input)
     self.tooltip = "\n".join(filter(None, (self._validate_input(), tooltip)))
 
@@ -282,10 +310,6 @@ class InputDirPlusText:
   def reset(self):
     self.entryName.config(cnf={'state': tk.NORMAL})
     self.buttonDirName.config(cnf={'state': tk.NORMAL})
-
-  @staticmethod
-  def isDir(path: str) -> str:
-    return "" if os.path.isdir(path) else f"Folder name \n{path}\nis not a valid path"
 
   def _validate_input(self, *_) -> str:
     if (_validate := self._validator(self.target.get())) == "":
