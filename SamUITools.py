@@ -295,10 +295,12 @@ class InputDirPlusText:
 
   def getFunc(self, func, title):
     def inputDirName():
-      self.filename = func(initialdir="/", title=title)
-      self.target.set(self.filename)
-      self.entryName.delete(0, tk.END)
-      self.entryName.insert(0, self.filename)
+      _f = func(initialdir="/", title=title)
+      if _f:
+        self.filename = _f
+        self.target.set(self.filename)
+        self.entryName.delete(0, tk.END)
+        self.entryName.insert(0, self.filename)
     return inputDirName
 
   def config(self, *args, **kwargs):
